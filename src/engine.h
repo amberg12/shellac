@@ -16,29 +16,28 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef SHELLAC_DEFS_H
-#define SHELLAC_DEFS_H
-#include <string_view>
+//
+// Created by amber on 02/03/2026.
+//
+
+#ifndef SHELLAC_ENGINE_H
+#define SHELLAC_ENGINE_H
+#include <vector>
+
+#include "position.h"
 
 namespace shellac {
-#ifdef BUILD_IDENTIFIER
-constexpr const char* BuildIdentifier = BUILD_IDENTIFIER;
-#else
-constexpr const char* BuildIdentifier = "unknown-build";
-#endif // BUILD_IDENTIFIER
 
-template <typename T, typename = std::enable_if_t<std::is_enum_v<T>>>
-constexpr std::underlying_type_t<T> underlying(T enumValue)
+class Engine
 {
-    return static_cast<std::underlying_type_t<T>>(enumValue);
-}
+public:
+    void set_position(const std::string& fen, const std::vector<std::string>& moves);
 
-template <typename T>
-constexpr T from_char(char c) = delete;
-
-template <typename T>
-constexpr T from_string(std::string_view s) = delete;
+    [[nodiscard]] std::string display() const;
+private:
+    Position position_{Position::from_fen(STARTING_POSITION)};
+};
 
 } // namespace shellac
 
-#endif // SHELLAC_DEFS_H
+#endif // SHELLAC_ENGINE_H

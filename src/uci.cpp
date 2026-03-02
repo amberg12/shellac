@@ -22,6 +22,10 @@
 
 #include "uci.h"
 
+#include <vector>
+
+#include "types.h"
+
 namespace shellac {
 void UciEngine::loop()
 {
@@ -31,6 +35,29 @@ void UciEngine::loop()
         std::istringstream iss{line};
 
         iss >> token;
+
+        if (token == "position") {
+            std::string              fen;
+            std::vector<std::string> moves;
+            iss >> token;
+
+            if (token == "startpos") {
+                fen = STARTING_POSITION;
+            }
+            else {
+                while (iss >> token && token != "moves") {
+                    fen += token + " ";
+                }
+            }
+
+            while (iss >> token) {
+                moves.push_back(token);
+            }
+
+            engine_.set_position(fen, moves);
+        } else if (token == "d") {
+            std::cout << engine_.display();
+        }
     }
 }
 } // namespace shellac

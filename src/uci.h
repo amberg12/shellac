@@ -18,12 +18,16 @@
 
 #ifndef SHELLAC_UCI_H
 #define SHELLAC_UCI_H
+#include "engine.h"
 namespace shellac {
 class UciEngine
 {
 public:
     UciEngine() = default;
     void loop();
+
+private:
+    Engine engine_;
 };
 } // namespace shellac
 
