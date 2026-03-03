@@ -35,7 +35,7 @@ public:
 
     [[nodiscard]] std::string display() const;
 private:
-    Position position_{Position::from_fen(STARTING_POSITION)};
+    GameHistory gameHistory_{std::string(STARTING_POSITION), {}};
 };
 
 } // namespace shellac

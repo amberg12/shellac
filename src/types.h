@@ -24,6 +24,7 @@
 #define SHELLAC_TYPES_H
 #include <cassert>
 #include <cstdint>
+#include <iostream>
 
 #include "defs.h"
 
@@ -38,6 +39,12 @@ enum class Color : std::uint8_t
     BLACK,
     NB = 2,
 };
+
+constexpr Color operator~(const Color c)
+{
+    assert(c == Color::WHITE || c == Color::BLACK);
+    return static_cast<Color>(underlying(c) ^ 1);
+}
 
 template <>
 constexpr Color from_char<Color>(const char c)
@@ -72,6 +79,29 @@ enum class Piece : std::uint8_t
     B_QUEEN,
     B_KING,
 };
+
+constexpr PieceType type_of(const Piece piece)
+{
+    assert((Piece::W_PAWN <= piece && piece <= Piece::W_KING) ||
+           (Piece::B_PAWN <= piece && piece <= Piece::B_KING) || piece == Piece::NONE);
+    return static_cast<PieceType>(underlying(piece) & 0b111);
+}
+
+constexpr Color color_of(const Piece piece)
+{
+    assert((Piece::W_PAWN <= piece && piece <= Piece::W_KING) ||
+           (Piece::B_PAWN <= piece && piece <= Piece::B_KING) || piece == Piece::NONE);
+    return underlying(piece) & 0b1000 ? Color::BLACK : Color::WHITE;
+}
+
+constexpr Piece make_piece(const Color color, const PieceType pieceType)
+{
+    if (color == Color::WHITE) {
+        return static_cast<Piece>(underlying(pieceType));  // Don't set the 0b1000 bit
+    } else {
+        return static_cast<Piece>(0b1000 | underlying(pieceType));  // Set the 0b1000 bit for BLACK
+    }
+}
 
 template <>
 constexpr Piece from_char<Piece>(const char c)
@@ -158,7 +188,7 @@ constexpr File& operator++(File& file)
     return file;
 }
 
-constexpr File& operator+=(File& file, int rhs)
+constexpr File& operator+=(File& file, const int rhs)
 {
     file = static_cast<File>(underlying(file) + rhs);
     return file;
@@ -172,7 +202,7 @@ constexpr bool is_valid(const File file)
 template <>
 constexpr File from_char(const char c)
 {
-    const File file = static_cast<File>(c - std::isupper(c) ? 'A' : 'a');
+    const File file = static_cast<File>(c - (std::isupper(c) ? 'A' : 'a'));
     assert(is_valid(file));
     return file;
 }
@@ -211,7 +241,7 @@ constexpr bool is_valid(const Rank rank)
 template <>
 constexpr Rank from_char<Rank>(const char c)
 {
-    const Rank rank = static_cast<Rank>(c - '0');
+    const Rank rank = static_cast<Rank>(c - '1');
     assert(is_valid(rank));
     return rank;
 }
@@ -305,6 +335,14 @@ constexpr Square make_square(const File file, const Rank rank)
     return static_cast<Square>(square_value);
 }
 
+enum class Direction
+{
+    NORTH = 8,
+    SOUTH = -8,
+    EAST  = 1,
+    WEST  = -1,
+};
+
 template <>
 constexpr Square from_string<Square>(const std::string_view s)
 {
@@ -333,6 +371,112 @@ constexpr Rank rank_of(const Square square)
     assert(is_valid(square));
     return static_cast<Rank>(underlying(square) >> 3);
 }
+
+constexpr Square& operator+=(Square& lhs, const Direction rhs)
+{
+    const File originalFile = file_of(lhs);
+    const Rank originalRank = rank_of(lhs);
+
+    assert(!(originalFile == File::F_A && rhs == Direction::WEST));
+    assert(!(originalFile == File::F_H && rhs == Direction::EAST));
+    assert(!(originalRank == Rank::R_1 && rhs == Direction::SOUTH));
+    assert(!(originalRank == Rank::R_8 && rhs == Direction::NORTH));
+
+    lhs = static_cast<Square>(underlying(lhs) + underlying(rhs));
+    return lhs;
+}
+
+constexpr Square operator+(const Square lhs, const Direction rhs)
+{
+    const File originalFile = file_of(lhs);
+    const Rank originalRank = rank_of(lhs);
+
+    assert(!(originalFile == File::F_A && rhs == Direction::WEST));
+    assert(!(originalFile == File::F_H && rhs == Direction::EAST));
+    assert(!(originalRank == Rank::R_1 && rhs == Direction::SOUTH));
+    assert(!(originalRank == Rank::R_8 && rhs == Direction::NORTH));
+
+    return static_cast<Square>(underlying(lhs) + underlying(rhs));
+}
+
+class Move
+{
+public:
+    Move() = default;
+    explicit Move(const std::uint16_t repr) : repr_(repr)
+    {
+    }
+    Move(const Square src, const Square dst) : repr_((underlying(dst) << 6) + underlying(src))
+    {
+    }
+
+    static Move create_en_passant(const Square src, const Square dst)
+    {
+        Move out{src, dst};
+        out.repr_ |= EN_PASSANT;
+        return out;
+    }
+
+    static Move create_castle(const Square src, const Square dst)
+    {
+        Move out{src, dst};
+        out.repr_ |= CASTLING;
+        return out;
+    }
+
+    static Move create_promotion(const Square src, const Square dst, const PieceType to)
+    {
+        Move out{src, dst};
+        out.repr_ |= PROMOTION;
+        out.repr_ |= (underlying(to) - underlying(PieceType::KNIGHT)) << 12;
+        return out;
+    }
+
+    [[nodiscard]] Square src() const
+    {
+        return static_cast<Square>(repr_ & SRC);
+    }
+
+    [[nodiscard]] Square dst() const
+    {
+        return static_cast<Square>((repr_ & DST) >> 6);
+    }
+
+    [[nodiscard]] bool is_en_passant() const
+    {
+        return repr_ & EN_PASSANT;
+    }
+
+    [[nodiscard]] bool is_castle() const
+    {
+        return repr_ & CASTLING;
+    }
+
+    [[nodiscard]] bool is_promotion() const
+    {
+        return repr_ & PROMOTION;
+    }
+
+    [[nodiscard]] PieceType promotion_piece() const
+    {
+        assert(is_promotion());
+        return static_cast<PieceType>(((repr_ & PROMOTE_TO) >> 12) + underlying(PieceType::KNIGHT));
+    }
+
+private:
+    enum Masks : std::uint16_t
+    {
+        SRC        = 0b0000'0000'0011'1111,
+        DST        = 0b0000'1111'1100'0000,
+        SPECIAL    = 0b1111'0000'0000'0000,
+        EN_PASSANT = 0b0001'0000'0000'0000,
+        CASTLING   = 0b0010'0000'0000'0000,
+        PROMOTION  = 0b0100'0000'0000'0000,
+        PROMOTE_TO = 0b0011'0000'0000'0000,
+    };
+
+    std::uint16_t repr_;
+};
 
 } // namespace shellac
 

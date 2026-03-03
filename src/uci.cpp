@@ -50,6 +50,8 @@ void UciEngine::loop()
                 }
             }
 
+            iss >> token;
+
             while (iss >> token) {
                 moves.push_back(token);
             }

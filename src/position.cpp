@@ -18,6 +18,8 @@
 
 #include "position.h"
 
+#include <algorithm>
+#include <cstring>
 #include <sstream>
 
 namespace shellac {
@@ -42,7 +44,9 @@ Position Position::from_fen(const std::string& fen)
             file += c - '0';
         }
         else {
-            out.add_piece(make_square(file, rank), from_char<Piece>(c));
+            const Piece  to = from_char<Piece>(c);
+            const Square at = make_square(file, rank);
+            out.set_piece(at, to);
             ++file;
         }
     }
@@ -91,17 +95,18 @@ std::string Position::to_fen() const
         int empty = 0;
 
         for (File file = File::F_A; is_valid(file); ++file) {
-            Square sq   = make_square(file, rank);
+            Square sq    = make_square(file, rank);
             Piece  piece = piece_at(sq);
 
-            if (piece == Piece::NONE) {  // adjust if your empty value differs
+            if (piece == Piece::NONE) { // adjust if your empty value differs
                 ++empty;
-            } else {
+            }
+            else {
                 if (empty > 0) {
                     out << empty;
                     empty = 0;
                 }
-                out << to_char(piece);  // your existing helper
+                out << to_char(piece); // your existing helper
             }
         }
 
@@ -118,20 +123,25 @@ std::string Position::to_fen() const
     out << ' ';
     if (castlingRights_ == 0) {
         out << '-';
-    } else {
-        if (castlingRights_ & WHITE_KING)  out << 'K';
-        if (castlingRights_ & WHITE_QUEEN) out << 'Q';
-        if (castlingRights_ & BLACK_KING)  out << 'k';
-        if (castlingRights_ & BLACK_QUEEN) out << 'q';
+    }
+    else {
+        if (castlingRights_ & WHITE_KING)
+            out << 'K';
+        if (castlingRights_ & WHITE_QUEEN)
+            out << 'Q';
+        if (castlingRights_ & BLACK_KING)
+            out << 'k';
+        if (castlingRights_ & BLACK_QUEEN)
+            out << 'q';
     }
 
     // 4. En passant
     out << ' ';
     if (enPassantSquare_ == Square::INVALID) {
         out << '-';
-    } else {
-        out << to_char(file_of(enPassantSquare_))
-            << to_char(rank_of(enPassantSquare_));
+    }
+    else {
+        out << to_char(file_of(enPassantSquare_)) << to_char(rank_of(enPassantSquare_));
     }
 
     out << ' ' << fiftyMoveRule_;
@@ -139,20 +149,196 @@ std::string Position::to_fen() const
 
     return out.str();
 }
+Position::Position(const Position& parent, const Move move, const GameHistory& history) :
+    mailBox_{parent.mailBox_}, castlingRights_{parent.castlingRights_},
+    sideToMove_{parent.sideToMove_}, enPassantSquare_{parent.enPassantSquare_},
+    fiftyMoveRule_{parent.fiftyMoveRule_ + 1}
+{
+    const Color  us   = sideToMove_;
+    const Color  them = ~us;
+    const Square src  = move.src();
+    const Square dst  = move.dst();
+
+    const auto get_captured_piece = [&](const Square d)
+    {
+        if (move.is_en_passant())
+            return make_piece(them, PieceType::PAWN);
+        return piece_at(d);
+    };
+
+    const auto get_moving_piece = [&](const Square s)
+    {
+        if (move.is_promotion())
+            return make_piece(us, move.promotion_piece());
+        return piece_at(s);
+    };
+
+    const Piece capturedPiece = get_captured_piece(dst);
+    const Piece movingPiece   = get_moving_piece(src);
+
+    assert(color_of(movingPiece) == us);
+    assert(capturedPiece == Piece::NONE || color_of(capturedPiece) == them);
+
+    if (move.is_castle()) {
+        const auto [rookSrc, rookDst] = [dst]() -> std::pair<Square, Square>
+        {
+            if (dst == Square::G1)
+                return {Square::H1, Square::F1};
+            if (dst == Square::C1)
+                return {Square::A1, Square::D1};
+            if (dst == Square::G8)
+                return {Square::H8, Square::F8};
+            if (dst == Square::C8)
+                return {Square::A8, Square::D8};
+            return {Square::INVALID, Square::INVALID};
+        }();
+
+        remove_piece(src);
+        remove_piece(rookSrc);
+        set_piece(dst, movingPiece);
+        set_piece(rookDst, make_piece(us, PieceType::ROOK));
+
+        const auto mask = static_cast<CastlingRights>(
+            (us == Color::WHITE) ? (WHITE_KING | WHITE_QUEEN) : (BLACK_KING | BLACK_QUEEN));
+        unset_castling(mask);
+
+        sideToMove_ = them;
+        return;
+    }
+
+    if (capturedPiece == Piece::NONE) {
+        set_piece(dst, movingPiece);
+        remove_piece(src);
+    }
+    else {
+        fiftyMoveRule_ = 0;
+        if (move.is_en_passant()) {
+            set_piece(enPassantSquare_, movingPiece);
+            remove_piece(src);
+
+            if (us == Color::WHITE) {
+                remove_piece(enPassantSquare_ + Direction::SOUTH);
+            }
+            else {
+                remove_piece(enPassantSquare_ + Direction::NORTH);
+            }
+        }
+        else {
+            swap_piece(dst, movingPiece);
+            remove_piece(src);
+        }
+    }
+
+    if (type_of(movingPiece) == PieceType::PAWN) {
+        const Rank srcRank = rank_of(src);
+        const Rank dstRank = rank_of(dst);
+        const int  diff    = std::abs(underlying(srcRank) - underlying(dstRank));
+
+        if (diff == 2) {
+            const Direction enPassantOffset =
+                us == Color::WHITE ? Direction::SOUTH : Direction::NORTH;
+
+            set_en_passant(dst + enPassantOffset);
+        }
+
+        fiftyMoveRule_ = 0;
+    }
+
+    sideToMove_ = ~sideToMove_;
+
+    if (src == Square::A1 || dst == Square::A1) {
+        unset_castling(WHITE_QUEEN);
+    }
+    if (src == Square::H1 || dst == Square::H1) {
+        unset_castling(WHITE_KING);
+    }
+    if (src == Square::A8 || dst == Square::A8) {
+        unset_castling(BLACK_QUEEN);
+    }
+    if (src == Square::H8 || dst == Square::H8) {
+        unset_castling(BLACK_KING);
+    }
+
+    if (fiftyMoveRule_ != 0) {
+        for (auto it = history.rbegin(); it != history.rend(); ++it) {
+            const Position& pos = *it;
+            if (is_repetition_of(pos)) {
+                repetitions_ = pos.repetitions_ + 1;
+            }
+
+            if (pos.fiftyMoveRule_ == 0) {
+                break;
+            }
+        }
+    }
+}
+
+Move Position::parse_move(const std::string& move) const
+{
+    assert(move.size() == 4 || move.size() == 5);
+
+    const Square    src         = from_string<Square>(move.substr(0, 2));
+    const Square    dst         = from_string<Square>(move.substr(2, 2));
+    const PieceType movingPiece = type_of(piece_at(src));
+
+    if (move.size() == 5) {
+        const PieceType promoteTo = type_of(from_char<Piece>(move[4]));
+        return Move::create_promotion(src, dst, promoteTo);
+    }
+
+    if (movingPiece == PieceType::PAWN && dst == enPassantSquare_) {
+        return Move::create_en_passant(src, dst);
+    }
+
+    const int diff =
+        std::abs(static_cast<int>(underlying(src)) - static_cast<int>(underlying(dst)));
+    if (movingPiece == PieceType::KING && diff == 2) {
+        return Move::create_castle(src, dst);
+    }
+
+    return {src, dst};
+}
 
 Piece Position::piece_at(const Square square) const
 {
     return mailBox_[underlying(square)];
 }
 
-void Position::add_piece(const Square at, const Piece piece)
+bool Position::is_repetition_of(const Position& rhs) const
 {
-    mailBox_[underlying(at)] = piece;
+    const bool sideToMoveEq     = sideToMove_ == rhs.sideToMove_;
+    const bool enPassantEq      = enPassantSquare_ == rhs.enPassantSquare_;
+    const bool castlingRightsEq = castlingRights_ == rhs.castlingRights_;
+    const bool piecesEq         = mailBox_ == rhs.mailBox_;
+
+    return sideToMoveEq && enPassantEq && castlingRightsEq && piecesEq;
+}
+void Position::set_piece(Square at, Piece to)
+{
+    assert(piece_at(at) == Piece::NONE);
+    mailBox_[underlying(at)] = to;
+}
+
+void Position::swap_piece(Square at, Piece to)
+{
+    assert(piece_at(at) != Piece::NONE);
+    mailBox_[underlying(at)] = to;
+}
+
+void Position::remove_piece(Square at)
+{
+    assert(piece_at(at) != Piece::NONE);
+    mailBox_[underlying(at)] = Piece::NONE;
 }
 
 void Position::set_castling(const CastlingRights castling)
 {
     castlingRights_ |= castling;
+}
+
+void Position::unset_castling(const CastlingRights castling)
+{
+    castlingRights_ &= ~castling;
 }
 
 void Position::set_side_to_move(const Color sideToMove)
@@ -163,6 +349,41 @@ void Position::set_side_to_move(const Color sideToMove)
 void Position::set_en_passant(const Square square)
 {
     enPassantSquare_ = square;
+}
+
+void Position::clear_castling_rights(CastlingRights castling)
+{
+    castlingRights_ &= ~castling;
+}
+
+GameHistory::GameHistory(const std::string& fen, const std::vector<std::string>& moves)
+{
+    gameHistory_.push_back(Position::from_fen(fen));
+
+    std::for_each(moves.begin(), moves.end(), [this](const std::string& move) { add_move(move); });
+}
+
+void GameHistory::add_move(const std::string& move)
+{
+    const Position& lastPosition = gameHistory_.back();
+    const Move      parsedMove   = lastPosition.parse_move(move);
+    add_move(parsedMove);
+}
+
+void GameHistory::add_move(Move move)
+{
+    const Position& lastPosition = gameHistory_.back();
+    gameHistory_.emplace_back(lastPosition, move, *this);
+}
+
+void GameHistory::pop_move()
+{
+    gameHistory_.pop_back();
+}
+
+const Position& GameHistory::current_position() const
+{
+    return gameHistory_.back();
 }
 
 } // namespace shellac

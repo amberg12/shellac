@@ -27,8 +27,7 @@
 namespace shellac {
 void Engine::set_position(const std::string& fen, const std::vector<std::string>& moves)
 {
-    (void)moves;
-    position_ = Position::from_fen(fen);
+    gameHistory_ = GameHistory{fen, moves};
 }
 
 std::string Engine::display() const
@@ -39,7 +38,7 @@ std::string Engine::display() const
     for (Rank rank = Rank::R_8; is_valid(rank); --rank) {
         for (File file = File::F_A; is_valid(file); ++file) {
             const Square at    = make_square(file, rank);
-            const Piece  piece = position_.piece_at(at);
+            const Piece  piece = gameHistory_.current_position().piece_at(at);
             out << "|" << to_char(piece);
         }
         out << "|" << to_char(rank) << '\n';
@@ -47,7 +46,7 @@ std::string Engine::display() const
     }
     out << " a b c d e f g h " << '\n';
 
-    out << "Fen: " + position_.to_fen();
+    out << "Fen: " + gameHistory_.current_position().to_fen() << '\n';
 
     return out.str();
 }
