@@ -30,6 +30,10 @@ add_executable(${EXE_NAME} src/main.cpp
         src/position.h
         src/types.h
         src/engine.cpp
-        src/engine.h)
+        src/engine.h
+        src/bitboard.cpp
+        src/bitboard.h
+        src/movegen.cpp
+        src/movegen.h)
 
 target_compile_definitions(${EXE_NAME} PRIVATE BUILD_IDENTIFIER="${GIT_BRANCH}-${GIT_COMMIT}")

@@ -18,14 +18,67 @@
 
 #ifndef SHELLAC_DEFS_H
 #define SHELLAC_DEFS_H
+#include <climits>
+#include <cstdint>
 #include <string_view>
 
 namespace shellac {
+
+#if defined(__clang__)
+#define CLANG
+#define CXX_COMPILER_NAME "clang++"
+#elif defined(__GNUC__) || defined(__GNUG__)
+#define GCC
+#define CXX_COMPILER_NAME "gcc"
+#elif defined(_MSC_VER)
+#define MSVC
+#define CXX_COMPILER_NAME "MSVC"
+#else
+#define CXX_COMPILER_NAME "unknown"
+#endif
+
 #ifdef BUILD_IDENTIFIER
-constexpr const char* BuildIdentifier = BUILD_IDENTIFIER;
+constexpr const char* BuildIdentifier = BUILD_IDENTIFIER "-" CXX_COMPILER_NAME;
 #else
 constexpr const char* BuildIdentifier = "unknown-build";
 #endif // BUILD_IDENTIFIER
+
+template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+constexpr int ctz(T t)
+{
+    using U = std::make_unsigned_t<T>;
+
+    if (t == 0) {
+        return CHAR_BIT * sizeof(T);
+    }
+
+    U   scanner = 1;
+    U   value   = static_cast<U>(t);
+    int count   = 0;
+
+    while (scanner) {
+        if (scanner & value) {
+            return count;
+        }
+        count++;
+        scanner <<= 1;
+    }
+    return count;
+}
+
+#ifdef GCC
+template <>
+constexpr int ctz<std::uint32_t>(const std::uint32_t t)
+{
+    return __builtin_ctz(t);
+}
+
+template <>
+constexpr int ctz<std::uint64_t>(const std::uint64_t t)
+{
+    return __builtin_ctzll(t);
+}
+#endif
 
 template <typename T, typename = std::enable_if_t<std::is_enum_v<T>>>
 constexpr std::underlying_type_t<T> underlying(T enumValue)

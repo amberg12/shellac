@@ -63,6 +63,63 @@ enum class PieceType : std::uint8_t
     KING,
 };
 
+template <PieceType PIECE_TYPE>
+struct is_pawn
+{
+    static constexpr bool value = PIECE_TYPE == PieceType::PAWN;
+};
+
+template <PieceType PIECE_TYPE>
+constexpr bool is_pawn_v = is_pawn<PIECE_TYPE>::value;
+
+template <PieceType PIECE_TYPE>
+struct is_knight
+{
+    static constexpr bool value = PIECE_TYPE == PieceType::KNIGHT;
+};
+
+template <PieceType PIECE_TYPE>
+constexpr bool is_knight_v = is_knight<PIECE_TYPE>::value;
+
+template <PieceType PIECE_TYPE>
+struct is_slider
+{
+    static constexpr bool value = PIECE_TYPE == PieceType::BISHOP ||
+        PIECE_TYPE == PieceType::ROOK || PIECE_TYPE == PieceType::QUEEN;
+};
+
+template <PieceType PIECE_TYPE>
+constexpr bool is_slider_v = is_slider<PIECE_TYPE>::value;
+
+template <PieceType PIECE_TYPE>
+struct is_king
+{
+    static constexpr bool value = PIECE_TYPE == PieceType::KING;
+};
+
+template <PieceType PIECE_TYPE>
+constexpr bool is_king_v = is_king<PIECE_TYPE>::value;
+
+constexpr char to_char(const PieceType piece)
+{
+    switch (piece) {
+    case PieceType::PAWN:
+        return 'p';
+    case PieceType::KNIGHT:
+        return 'n';
+    case PieceType::BISHOP:
+        return 'b';
+    case PieceType::ROOK:
+        return 'r';
+    case PieceType::QUEEN:
+        return 'q';
+    case PieceType::KING:
+        return 'k';
+    default:
+        return '_';
+    }
+}
+
 enum class Piece : std::uint8_t
 {
     NONE   = 0,
@@ -97,9 +154,10 @@ constexpr Color color_of(const Piece piece)
 constexpr Piece make_piece(const Color color, const PieceType pieceType)
 {
     if (color == Color::WHITE) {
-        return static_cast<Piece>(underlying(pieceType));  // Don't set the 0b1000 bit
-    } else {
-        return static_cast<Piece>(0b1000 | underlying(pieceType));  // Set the 0b1000 bit for BLACK
+        return static_cast<Piece>(underlying(pieceType));
+    }
+    else {
+        return static_cast<Piece>(0b1000 | underlying(pieceType));
     }
 }
 
@@ -399,6 +457,14 @@ constexpr Square operator+(const Square lhs, const Direction rhs)
     return static_cast<Square>(underlying(lhs) + underlying(rhs));
 }
 
+inline std::string to_string(const Square square)
+{
+    std::string out;
+    out += to_char(file_of(square));
+    out += to_char(rank_of(square));
+    return out;
+}
+
 class Move
 {
 public:
@@ -457,6 +523,11 @@ public:
         return repr_ & PROMOTION;
     }
 
+    [[nodiscard]] bool is_null() const
+    {
+        return repr_ == 0;
+    }
+
     [[nodiscard]] PieceType promotion_piece() const
     {
         assert(is_promotion());
@@ -477,6 +548,28 @@ private:
 
     std::uint16_t repr_;
 };
+
+inline std::string to_string(const Move move)
+{
+    if (move.is_null()) {
+        return "0000";
+    }
+
+    std::string out = to_string(move.src()) + to_string(move.dst());
+    if (move.is_promotion()) {
+        out += to_char(move.promotion_piece());
+    }
+
+    return out;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const Move& move)
+{
+    os << to_string(move);
+    return os;
+}
+
+using Score = int;
 
 } // namespace shellac
 

@@ -16,16 +16,13 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//
-// Created by amber on 02/03/2026.
-//
-
 #ifndef SHELLAC_POSITION_H
 #define SHELLAC_POSITION_H
 #include <array>
 #include <string>
 #include <vector>
 
+#include "bitboard.h"
 #include "types.h"
 
 namespace shellac {
@@ -39,8 +36,24 @@ public:
     [[nodiscard]] std::string to_fen() const;
 
     Position(const Position& parent, Move move, const GameHistory& history);
+    Position(const Position& parent, Move move);
 
     [[nodiscard]] Move parse_move(const std::string& move) const;
+
+    [[nodiscard]] Color side_to_move() const;
+
+    [[nodiscard]] constexpr Bitboard pieces() const;
+    [[nodiscard]] constexpr Bitboard pieces(Color color) const;
+    template <typename... PieceTypes,
+              typename = std::enable_if_t<(std::is_same_v<PieceTypes, PieceType> && ...) &&
+                                              (sizeof...(PieceTypes) > 0),
+                                          Bitboard>>
+    [[nodiscard]] constexpr Bitboard pieces(PieceTypes... pieceTypes) const;
+    template <typename... PieceTypes,
+              typename = std::enable_if_t<(std::is_same_v<PieceTypes, PieceType> && ...) &&
+                                              (sizeof...(PieceTypes) > 0),
+                                          Bitboard>>
+    [[nodiscard]] constexpr Bitboard pieces(Color color, PieceTypes... pieceTypes) const;
 
     [[nodiscard]] Piece piece_at(Square square) const;
 
@@ -60,20 +73,52 @@ private:
     void set_piece(Square at, Piece to);
     void swap_piece(Square at, Piece to);
     void remove_piece(Square at);
+    void set_bitboard(Piece piece, Square at);
+    void unset_bitboard(Piece piece, Square at);
 
     void set_castling(CastlingRights castling);
     void unset_castling(CastlingRights castling);
     void set_side_to_move(Color sideToMove);
     void set_en_passant(Square square);
+    void clear_en_passant();
     void clear_castling_rights(CastlingRights castling);
 
-    std::array<Piece, 64> mailBox_{};
-    std::uint8_t          castlingRights_{};
-    Color                 sideToMove_{};
-    Square                enPassantSquare_{Square::INVALID};
-    int                   fiftyMoveRule_{};
-    int                   repetitions_{};
+    void apply_move(Move move);
+
+    std::array<Piece, 64>   mailBox_{};
+    std::uint8_t            castlingRights_{};
+    Color                   sideToMove_{};
+    Square                  enPassantSquare_{Square::INVALID};
+    std::array<Bitboard, 6> pieceTypeBitboard_{};
+    std::array<Bitboard, 2> colorBitboard_{};
+    int                     fiftyMoveRule_{};
+    int                     repetitions_{};
 };
+
+constexpr Bitboard Position::pieces() const
+{
+    return pieces(Color::WHITE) | pieces(Color::BLACK);
+}
+
+constexpr Bitboard Position::pieces(const Color color) const
+{
+    return colorBitboard_[underlying(color)];
+}
+
+template <typename... PieceTypes, typename>
+constexpr Bitboard Position::pieces(PieceTypes... pieceTypes) const
+{
+    constexpr auto to_index = [](const PieceType pieceType)
+    { return underlying(pieceType) - underlying(PieceType::PAWN); };
+
+    return (pieceTypeBitboard_[to_index(pieceTypes)] | ...);
+}
+
+template <typename... PieceTypes, typename>
+constexpr Bitboard Position::pieces(const Color color, PieceTypes... pieceTypes) const
+{
+    return pieces(color) & pieces(pieceTypes...);
+}
 
 class GameHistory
 {

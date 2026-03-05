@@ -23,6 +23,17 @@
 #include <sstream>
 
 namespace shellac {
+namespace {
+size_t piece_to_piece_type_index(const Piece piece)
+{
+    return underlying(type_of(piece)) - 1;
+}
+
+size_t piece_to_color_index(const Piece piece)
+{
+    return underlying(color_of(piece));
+}
+} // namespace
 
 Position Position::from_fen(const std::string& fen)
 {
@@ -149,12 +160,160 @@ std::string Position::to_fen() const
 
     return out.str();
 }
+
+Position::Position(const Position& parent, const Move move)
+:
+    mailBox_{parent.mailBox_}, castlingRights_{parent.castlingRights_},
+    sideToMove_{parent.sideToMove_}, enPassantSquare_{parent.enPassantSquare_},
+    pieceTypeBitboard_{parent.pieceTypeBitboard_}, colorBitboard_{parent.colorBitboard_},
+    fiftyMoveRule_{parent.fiftyMoveRule_ + 1}
+{
+    apply_move(move);
+}
+
 Position::Position(const Position& parent, const Move move, const GameHistory& history) :
     mailBox_{parent.mailBox_}, castlingRights_{parent.castlingRights_},
     sideToMove_{parent.sideToMove_}, enPassantSquare_{parent.enPassantSquare_},
+    pieceTypeBitboard_{parent.pieceTypeBitboard_}, colorBitboard_{parent.colorBitboard_},
     fiftyMoveRule_{parent.fiftyMoveRule_ + 1}
 {
-    const Color  us   = sideToMove_;
+    apply_move(move);
+
+    if (fiftyMoveRule_ != 0 && !move.is_castle()) {
+        for (auto it = history.rbegin(); it != history.rend(); ++it) {
+            const Position& pos = *it;
+            if (is_repetition_of(pos)) {
+                repetitions_ = pos.repetitions_ + 1;
+            }
+
+            if (pos.fiftyMoveRule_ == 0) {
+                break;
+            }
+        }
+    }
+}
+
+Move Position::parse_move(const std::string& move) const
+{
+    assert(move.size() == 4 || move.size() == 5);
+
+    const Square    src         = from_string<Square>(move.substr(0, 2));
+    const Square    dst         = from_string<Square>(move.substr(2, 2));
+    const PieceType movingPiece = type_of(piece_at(src));
+
+    if (move.size() == 5) {
+        const PieceType promoteTo = type_of(from_char<Piece>(move[4]));
+        return Move::create_promotion(src, dst, promoteTo);
+    }
+
+    if (movingPiece == PieceType::PAWN && dst == enPassantSquare_) {
+        return Move::create_en_passant(src, dst);
+    }
+
+    const int diff =
+        std::abs(static_cast<int>(underlying(src)) - static_cast<int>(underlying(dst)));
+    if (movingPiece == PieceType::KING && diff == 2) {
+        return Move::create_castle(src, dst);
+    }
+
+    return {src, dst};
+}
+
+Color Position::side_to_move() const
+{
+    return sideToMove_;
+}
+
+Piece Position::piece_at(const Square square) const
+{
+    return mailBox_[underlying(square)];
+}
+
+bool Position::is_repetition_of(const Position& rhs) const
+{
+    const bool sideToMoveEq     = sideToMove_ == rhs.sideToMove_;
+    const bool enPassantEq      = enPassantSquare_ == rhs.enPassantSquare_;
+    const bool castlingRightsEq = castlingRights_ == rhs.castlingRights_;
+    const bool piecesEq         = mailBox_ == rhs.mailBox_;
+
+    return sideToMoveEq && enPassantEq && castlingRightsEq && piecesEq;
+}
+
+void Position::set_piece(const Square at, const Piece to)
+{
+    assert(piece_at(at) == Piece::NONE);
+
+    mailBox_[underlying(at)] = to;
+    set_bitboard(to, at);
+}
+
+void Position::swap_piece(const Square at, const Piece to)
+{
+    assert(piece_at(at) != Piece::NONE);
+
+    unset_bitboard(piece_at(at), at);
+    set_bitboard(to, at);
+    mailBox_[underlying(at)] = to;
+}
+
+void Position::remove_piece(const Square at)
+{
+    assert(piece_at(at) != Piece::NONE);
+    unset_bitboard(piece_at(at), at);
+    mailBox_[underlying(at)] = Piece::NONE;
+}
+
+void Position::set_bitboard(Piece piece, Square at)
+{
+    const size_t colorIndex     = piece_to_color_index(piece);
+    const size_t pieceTypeIndex = piece_to_piece_type_index(piece);
+
+    colorBitboard_[colorIndex].set_square(at);
+    pieceTypeBitboard_[pieceTypeIndex].set_square(at);
+}
+void Position::unset_bitboard(Piece piece, Square at)
+{
+    const size_t colorIndex     = piece_to_color_index(piece);
+    const size_t pieceTypeIndex = piece_to_piece_type_index(piece);
+
+    colorBitboard_[colorIndex].unset_square(at);
+    pieceTypeBitboard_[pieceTypeIndex].unset_square(at);
+}
+
+void Position::set_castling(const CastlingRights castling)
+{
+    castlingRights_ |= castling;
+}
+
+void Position::unset_castling(const CastlingRights castling)
+{
+    castlingRights_ &= ~castling;
+}
+
+void Position::set_side_to_move(const Color sideToMove)
+{
+    sideToMove_ = sideToMove;
+}
+
+void Position::set_en_passant(const Square square)
+{
+    assert(enPassantSquare_ == Square::INVALID);
+    enPassantSquare_ = square;
+}
+
+void Position::clear_en_passant()
+{
+    enPassantSquare_ = Square::INVALID;
+}
+
+void Position::clear_castling_rights(const CastlingRights castling)
+{
+    castlingRights_ &= ~castling;
+}
+
+void Position::apply_move(Move move)
+{
+        const Color  us   = sideToMove_;
     const Color  them = ~us;
     const Square src  = move.src();
     const Square dst  = move.dst();
@@ -178,6 +337,8 @@ Position::Position(const Position& parent, const Move move, const GameHistory& h
 
     assert(color_of(movingPiece) == us);
     assert(capturedPiece == Piece::NONE || color_of(capturedPiece) == them);
+
+    clear_en_passant();
 
     if (move.is_castle()) {
         const auto [rookSrc, rookDst] = [dst]() -> std::pair<Square, Square>
@@ -258,102 +419,6 @@ Position::Position(const Position& parent, const Move move, const GameHistory& h
     if (src == Square::H8 || dst == Square::H8) {
         unset_castling(BLACK_KING);
     }
-
-    if (fiftyMoveRule_ != 0) {
-        for (auto it = history.rbegin(); it != history.rend(); ++it) {
-            const Position& pos = *it;
-            if (is_repetition_of(pos)) {
-                repetitions_ = pos.repetitions_ + 1;
-            }
-
-            if (pos.fiftyMoveRule_ == 0) {
-                break;
-            }
-        }
-    }
-}
-
-Move Position::parse_move(const std::string& move) const
-{
-    assert(move.size() == 4 || move.size() == 5);
-
-    const Square    src         = from_string<Square>(move.substr(0, 2));
-    const Square    dst         = from_string<Square>(move.substr(2, 2));
-    const PieceType movingPiece = type_of(piece_at(src));
-
-    if (move.size() == 5) {
-        const PieceType promoteTo = type_of(from_char<Piece>(move[4]));
-        return Move::create_promotion(src, dst, promoteTo);
-    }
-
-    if (movingPiece == PieceType::PAWN && dst == enPassantSquare_) {
-        return Move::create_en_passant(src, dst);
-    }
-
-    const int diff =
-        std::abs(static_cast<int>(underlying(src)) - static_cast<int>(underlying(dst)));
-    if (movingPiece == PieceType::KING && diff == 2) {
-        return Move::create_castle(src, dst);
-    }
-
-    return {src, dst};
-}
-
-Piece Position::piece_at(const Square square) const
-{
-    return mailBox_[underlying(square)];
-}
-
-bool Position::is_repetition_of(const Position& rhs) const
-{
-    const bool sideToMoveEq     = sideToMove_ == rhs.sideToMove_;
-    const bool enPassantEq      = enPassantSquare_ == rhs.enPassantSquare_;
-    const bool castlingRightsEq = castlingRights_ == rhs.castlingRights_;
-    const bool piecesEq         = mailBox_ == rhs.mailBox_;
-
-    return sideToMoveEq && enPassantEq && castlingRightsEq && piecesEq;
-}
-void Position::set_piece(Square at, Piece to)
-{
-    assert(piece_at(at) == Piece::NONE);
-    mailBox_[underlying(at)] = to;
-}
-
-void Position::swap_piece(Square at, Piece to)
-{
-    assert(piece_at(at) != Piece::NONE);
-    mailBox_[underlying(at)] = to;
-}
-
-void Position::remove_piece(Square at)
-{
-    assert(piece_at(at) != Piece::NONE);
-    mailBox_[underlying(at)] = Piece::NONE;
-}
-
-void Position::set_castling(const CastlingRights castling)
-{
-    castlingRights_ |= castling;
-}
-
-void Position::unset_castling(const CastlingRights castling)
-{
-    castlingRights_ &= ~castling;
-}
-
-void Position::set_side_to_move(const Color sideToMove)
-{
-    sideToMove_ = sideToMove;
-}
-
-void Position::set_en_passant(const Square square)
-{
-    enPassantSquare_ = square;
-}
-
-void Position::clear_castling_rights(CastlingRights castling)
-{
-    castlingRights_ &= ~castling;
 }
 
 GameHistory::GameHistory(const std::string& fen, const std::vector<std::string>& moves)

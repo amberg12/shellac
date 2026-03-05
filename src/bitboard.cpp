@@ -16,30 +16,7 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//
-// Created by amber on 02/03/2026.
-//
-
-#ifndef SHELLAC_ENGINE_H
-#define SHELLAC_ENGINE_H
-#include <vector>
-
-#include "position.h"
+#include "bitboard.h"
 
 namespace shellac {
-
-class Engine
-{
-public:
-    void set_position(const std::string& fen, const std::vector<std::string>& moves);
-
-    // Our extensions.
-    [[nodiscard]] std::string display() const;
-    void perft(int depth) const;
-private:
-    GameHistory gameHistory_{std::string(STARTING_POSITION), {}};
-};
-
 } // namespace shellac
-
-#endif // SHELLAC_ENGINE_H

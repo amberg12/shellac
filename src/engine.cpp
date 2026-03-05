@@ -24,7 +24,40 @@
 
 #include <sstream>
 
+#include "movegen.h"
+
 namespace shellac {
+namespace {
+template <bool OUTPUT_MOVES>
+uint64_t run_perft(const Position& position, const int depth)
+{
+    if (!OUTPUT_MOVES && depth == 1) {
+        const MoveList moves = MoveList::from_position(position);
+        return moves.size();
+    }
+
+    if (depth == 0) {
+        return 1;
+    }
+
+    uint64_t       sum   = 0;
+    const MoveList moves = MoveList::from_position(position);
+
+    for (const Move& move : moves) {
+        const auto     next       = Position{position, move};
+        const uint64_t move_count = run_perft<false>(next, depth - 1);
+
+        if constexpr (OUTPUT_MOVES) {
+            std::cout << move << ": " << move_count << '\n';
+        }
+
+        sum += move_count;
+    }
+
+    return sum;
+}
+} // namespace
+
 void Engine::set_position(const std::string& fen, const std::vector<std::string>& moves)
 {
     gameHistory_ = GameHistory{fen, moves};
@@ -49,5 +82,11 @@ std::string Engine::display() const
     out << "Fen: " + gameHistory_.current_position().to_fen() << '\n';
 
     return out.str();
+}
+
+void Engine::perft(const int depth) const
+{
+    const uint64_t nodes = run_perft<true>(gameHistory_.current_position(), depth);
+    std::cout << "Node count: " << nodes << '\n';
 }
 } // namespace shellac
