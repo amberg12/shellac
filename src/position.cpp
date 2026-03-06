@@ -252,6 +252,10 @@ bool Position::is_legal(const Move move) const
         if (bishopAttacks.intersects(pieces(them, PieceType::BISHOP, PieceType::QUEEN))) {
             return false;
         }
+
+        if (blockers_.has_square(enPassantSquare_ + direction)) {
+            return true;
+        }
     }
 
     if (move.is_castle()) {
