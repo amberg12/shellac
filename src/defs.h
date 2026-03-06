@@ -80,10 +80,61 @@ constexpr int ctz<std::uint64_t>(const std::uint64_t t)
 }
 #endif
 
+template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+constexpr int pop_count(T t)
+{
+    using U = std::make_unsigned_t<T>;
+
+    U   scanner = 1;
+    U   value   = static_cast<U>(t);
+    int count   = 0;
+
+    while (scanner) {
+        if (scanner & value) {
+            ++count;
+        }
+
+        scanner <<= 1;
+    }
+
+    return count;
+}
+
+#if defined(GCC)
+template <>
+constexpr int pop_count<std::uint64_t>(std::uint64_t t)
+{
+    return __builtin_popcountll(t);
+}
+
+template <>
+constexpr int pop_count<std::uint32_t>(std::uint32_t t)
+{
+    return __builtin_popcount(t);
+}
+#endif
+
 template <typename T, typename = std::enable_if_t<std::is_enum_v<T>>>
 constexpr std::underlying_type_t<T> underlying(T enumValue)
 {
     return static_cast<std::underlying_type_t<T>>(enumValue);
+}
+
+template <typename T>
+constexpr int signum(T x, const std::false_type is_signed) {
+    (void)is_signed;
+    return T(0) < x;
+}
+
+template <typename T>
+constexpr int signum(T x, const std::true_type is_signed) {
+    (void)is_signed;
+    return (T(0) < x) - (x < T(0));
+}
+
+template <typename T>
+constexpr int signum(T x) {
+    return signum(x, std::is_signed<T>());
 }
 
 template <typename T>

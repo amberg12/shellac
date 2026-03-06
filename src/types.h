@@ -240,6 +240,11 @@ enum class File : std::uint8_t
     NB = 8,
 };
 
+constexpr File operator+(const File file, const int diff)
+{
+    return static_cast<File>(underlying(file) + diff);
+}
+
 constexpr File& operator++(File& file)
 {
     file = static_cast<File>(underlying(file) + 1);
@@ -284,6 +289,11 @@ enum class Rank : std::uint8_t
     INVALID,
     NB = 8,
 };
+
+constexpr Rank operator+(const Rank rank, const int diff)
+{
+    return static_cast<Rank>(underlying(rank) + diff);
+}
 
 constexpr Rank& operator--(Rank& rank)
 {
@@ -456,6 +466,24 @@ constexpr Square operator+(const Square lhs, const Direction rhs)
     assert(!(originalRank == Rank::R_8 && rhs == Direction::NORTH));
 
     return static_cast<Square>(underlying(lhs) + underlying(rhs));
+}
+
+constexpr bool is_orthogonal_to(const Square lhs, const Square rhs)
+{
+    assert(is_valid(lhs) && is_valid(rhs));
+    return file_of(lhs) == file_of(rhs) || rank_of(lhs) == rank_of(rhs);
+}
+
+constexpr bool is_diagonal_to(const Square lhs, const Square rhs)
+{
+    assert(is_valid(lhs) && is_valid(rhs));
+
+    const int df = static_cast<int>(underlying(file_of(lhs))) -
+                   static_cast<int>(underlying(file_of(rhs)));
+    const int dr = static_cast<int>(underlying(rank_of(lhs))) -
+                   static_cast<int>(underlying(rank_of(rhs)));
+
+    return std::abs(df) == std::abs(dr);
 }
 
 inline std::string to_string(const Square square)

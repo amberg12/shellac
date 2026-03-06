@@ -95,6 +95,8 @@ Position Position::from_fen(const std::string& fen)
         out.fiftyMoveRule_ = 0;
     }
 
+    out.generate_check_info();
+
     return out;
 }
 
@@ -161,8 +163,7 @@ std::string Position::to_fen() const
     return out.str();
 }
 
-Position::Position(const Position& parent, const Move move)
-:
+Position::Position(const Position& parent, const Move move) :
     mailBox_{parent.mailBox_}, castlingRights_{parent.castlingRights_},
     sideToMove_{parent.sideToMove_}, enPassantSquare_{parent.enPassantSquare_},
     pieceTypeBitboard_{parent.pieceTypeBitboard_}, colorBitboard_{parent.colorBitboard_},
@@ -178,7 +179,7 @@ Position::Position(const Position& parent, const Move move, const GameHistory& h
     fiftyMoveRule_{parent.fiftyMoveRule_ + 1}
 {
     apply_move(move);
-
+    generate_check_info();
     if (fiftyMoveRule_ != 0 && !move.is_castle()) {
         for (auto it = history.rbegin(); it != history.rend(); ++it) {
             const Position& pos = *it;
@@ -219,6 +220,17 @@ Move Position::parse_move(const std::string& move) const
     return {src, dst};
 }
 
+bool Position::is_legal(const Move move) const
+{
+    const PieceType movingPiece = type_of(piece_at(move.src()));
+
+    if (kingAttackers_ >= 2) {
+        return !move.is_castle() && movingPiece == PieceType::KING;
+    }
+
+    return true;
+}
+
 Color Position::side_to_move() const
 {
     return sideToMove_;
@@ -246,6 +258,11 @@ bool Position::can_castle_queenside(const Color color) const
     const auto castlingRight = static_cast<CastlingRights>(
         color == Color::WHITE ? CastlingRights::WHITE_QUEEN : CastlingRights::BLACK_QUEEN);
     return castlingRights_ & castlingRight;
+}
+
+Square Position::king_square(const Color color) const
+{
+    return pieces(color, PieceType::KING).lsb_square();
 }
 
 Piece Position::piece_at(const Square square) const
@@ -337,7 +354,7 @@ void Position::clear_castling_rights(const CastlingRights castling)
 
 void Position::apply_move(Move move)
 {
-        const Color  us   = sideToMove_;
+    const Color  us   = sideToMove_;
     const Color  them = ~us;
     const Square src  = move.src();
     const Square dst  = move.dst();
@@ -442,6 +459,97 @@ void Position::apply_move(Move move)
     }
     if (src == Square::H8 || dst == Square::H8) {
         unset_castling(BLACK_KING);
+    }
+}
+
+void Position::generate_check_info()
+{
+    const Color    us               = sideToMove_;
+    const Color    them             = ~sideToMove_;
+    const Bitboard excludingOurKing = pieces() & ~pieces(us, PieceType::KING);
+    const Bitboard ourKing          = pieces(us, PieceType::KING);
+    const Square   ourKingSquare    = king_square(us);
+
+    for (const Square src : pieces(them, PieceType::PAWN)) {
+        const Bitboard attack          = generate_pawn_attacks(them, src, Bitboard::create_full());
+        const bool     isAttackingKing = attack.intersects(ourKing);
+
+        attackedSquares_ |= attack;
+        if (isAttackingKing) {
+            kingAttackers_ += 1;
+        }
+    }
+
+    for (const Square src : pieces(them, PieceType::KNIGHT)) {
+        const Bitboard attack          = generate_attacks<PieceType::KNIGHT>(src, Bitboard{});
+        const bool     isAttackingKing = attack.intersects(ourKing);
+
+        attackedSquares_ |= attack;
+        if (isAttackingKing) {
+            kingAttackers_ += 1;
+        }
+    }
+
+    for (const Square src : pieces(them, PieceType::KING)) {
+        const Bitboard attack          = generate_attacks<PieceType::KING>(src, Bitboard{});
+        attackedSquares_ |= attack;
+    }
+
+    for (const Square src : pieces(them, PieceType::BISHOP)) {
+        const Bitboard attack          = generate_attacks<PieceType::BISHOP>(src, excludingOurKing);
+        const bool     isAttackingKing = attack.intersects(ourKing);
+
+        attackedSquares_ |= attack;
+        if (isAttackingKing) {
+            kingAttackers_ += 1;
+        }
+        else if (is_diagonal_to(src, ourKingSquare)) {
+            const Bitboard pinRay = Bitboard::generate_between(src, ourKingSquare);
+            const int piecesBetween = (pinRay & pieces()).pop_count();
+            const int ourPiecesBetween = (pinRay & pieces(us)).pop_count();
+
+            if (piecesBetween == 1 && ourPiecesBetween == 1) {
+                pinRays_ |= pinRay;
+            }
+        }
+    }
+
+    for (const Square src : pieces(them, PieceType::ROOK)) {
+        const Bitboard attack          = generate_attacks<PieceType::ROOK>(src, excludingOurKing);
+        const bool     isAttackingKing = attack.intersects(ourKing);
+
+        attackedSquares_ |= attack;
+        if (isAttackingKing) {
+            kingAttackers_ += 1;
+        }
+        else if (is_orthogonal_to(src, ourKingSquare)) {
+            const Bitboard pinRay = Bitboard::generate_between(src, ourKingSquare);
+            const int      piecesBetween = (pinRay & pieces()).pop_count();
+            const int      ourPiecesBetween = (pinRay & pieces(us)).pop_count();
+
+            if (piecesBetween == 1 && ourPiecesBetween == 1) {
+                pinRays_ |= pinRay;
+            }
+        }
+    }
+
+    for (const Square src : pieces(them, PieceType::QUEEN)) {
+        const Bitboard attack          = generate_attacks<PieceType::QUEEN>(src, excludingOurKing);
+        const bool     isAttackingKing = attack.intersects(ourKing);
+
+        attackedSquares_ |= attack;
+        if (isAttackingKing) {
+            kingAttackers_ += 1;
+        }
+        else if (is_diagonal_to(src, ourKingSquare) || is_orthogonal_to(src, ourKingSquare)) {
+            const Bitboard pinRay = Bitboard::generate_between(src, ourKingSquare);
+            const int      piecesBetween = (pinRay & pieces()).pop_count();
+            const int      ourPiecesBetween = (pinRay & pieces(us)).pop_count();
+
+            if (piecesBetween == 1 && ourPiecesBetween == 1) {
+                pinRays_ |= pinRay;
+            }
+        }
     }
 }
 

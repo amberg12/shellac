@@ -40,6 +40,7 @@ public:
     Position(const Position& parent, Move move);
 
     [[nodiscard]] Move parse_move(const std::string& move) const;
+    [[nodiscard]] bool is_legal(Move move) const;
 
     [[nodiscard]] Color side_to_move() const;
 
@@ -60,7 +61,8 @@ public:
                                           Bitboard>>
     [[nodiscard]] constexpr Bitboard pieces(Color color, PieceTypes... pieceTypes) const;
 
-    [[nodiscard]] Piece piece_at(Square square) const;
+    [[nodiscard]] Square king_square(Color color) const;
+    [[nodiscard]] Piece  piece_at(Square square) const;
 
     [[nodiscard]] bool is_repetition_of(const Position& rhs) const;
 
@@ -90,6 +92,8 @@ private:
 
     void apply_move(Move move);
 
+    void generate_check_info();
+
     std::array<Piece, 64>   mailBox_{};
     std::uint8_t            castlingRights_{};
     Color                   sideToMove_{};
@@ -98,6 +102,10 @@ private:
     std::array<Bitboard, 2> colorBitboard_{};
     int                     fiftyMoveRule_{};
     int                     repetitions_{};
+
+    Bitboard attackedSquares_;
+    Bitboard pinRays_;
+    int      kingAttackers_{};
 };
 
 constexpr Bitboard Position::pieces() const

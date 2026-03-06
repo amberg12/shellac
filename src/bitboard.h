@@ -39,6 +39,59 @@ public:
         return bitboard_;
     }
 
+    static constexpr Bitboard create_full()
+    {
+        return Bitboard(~0ULL);
+    }
+
+    static constexpr Bitboard generate_between(const Square src, const Square dst)
+    {
+        assert(is_diagonal_to(src, dst) || is_orthogonal_to(src, dst));
+
+        const int fileDelta = signum(underlying(file_of(dst)) - underlying(file_of(src)));
+        const int rankDelta = signum(underlying(rank_of(dst)) - underlying(rank_of(src)));
+        Bitboard  out{};
+        Square    scanner = src;
+
+        while (true) {
+            const File file = file_of(scanner) + fileDelta;
+            const Rank rank = rank_of(scanner) + rankDelta;
+            scanner         = make_square(file, rank);
+
+            if (scanner == dst) {
+                break;
+            }
+
+            out |= Bitboard{scanner};
+        }
+
+        return out;
+    }
+
+    static constexpr Bitboard generate_line(const Square src, const Square dst)
+    {
+        assert(is_diagonal_to(src, dst) || is_orthogonal_to(src, dst));
+
+        const int fileDelta = signum(underlying(file_of(dst)) - underlying(file_of(src)));
+        const int rankDelta = signum(underlying(rank_of(dst)) - underlying(rank_of(src)));
+        Bitboard  out{src};
+        Square    scanner = src;
+
+        while (true) {
+            const File file = file_of(scanner) + fileDelta;
+            const Rank rank = rank_of(scanner) + rankDelta;
+            scanner         = make_square(file, rank);
+
+            out |= Bitboard{scanner};
+
+            if (scanner == dst) {
+                break;
+            }
+        }
+
+        return out;
+    }
+
     constexpr void set_square(const Square square)
     {
         *this |= Bitboard(square);
@@ -47,6 +100,11 @@ public:
     constexpr void unset_square(const Square square)
     {
         *this &= ~Bitboard(square);
+    }
+
+    [[nodiscard]] constexpr int pop_count() const
+    {
+        return shellac::pop_count(bitboard_);
     }
 
     [[nodiscard]] constexpr int ctz() const
@@ -72,6 +130,11 @@ public:
     [[nodiscard]] constexpr bool is_empty() const
     {
         return bitboard_ == 0;
+    }
+
+    [[nodiscard]] constexpr bool intersects(const Bitboard rhs) const
+    {
+        return !(*this & rhs).is_empty();
     }
 
     [[nodiscard]] constexpr Bitboard shift(Direction direction) const;

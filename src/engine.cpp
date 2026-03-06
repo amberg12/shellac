@@ -16,10 +16,6 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//
-// Created by amber on 02/03/2026.
-//
-
 #include "engine.h"
 
 #include <sstream>
@@ -31,11 +27,6 @@ namespace {
 template <bool OUTPUT_MOVES>
 uint64_t run_perft(const Position& position, const int depth)
 {
-    if (!OUTPUT_MOVES && depth == 1) {
-        const MoveList moves = MoveList::from_position(position);
-        return moves.size();
-    }
-
     if (depth == 0) {
         return 1;
     }
@@ -44,6 +35,10 @@ uint64_t run_perft(const Position& position, const int depth)
     const MoveList moves = MoveList::from_position(position);
 
     for (const Move& move : moves) {
+        if (!position.is_legal(move)) {
+            continue;
+        }
+
         const auto     next       = Position{position, move};
         const uint64_t move_count = run_perft<false>(next, depth - 1);
 
