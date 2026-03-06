@@ -223,14 +223,34 @@ Move Position::parse_move(const std::string& move) const
 
 bool Position::is_legal(const Move move) const
 {
-    const PieceType movingPiece = type_of(piece_at(move.src()));
+    const Square    src         = move.src();
+    const Square    dst         = move.dst();
+    const PieceType movingPiece = type_of(piece_at(src));
 
     if (kingAttackers_ >= 2) {
         return !move.is_castle() && movingPiece == PieceType::KING;
     }
 
     if (movingPiece == PieceType::KING) {
-        return !attackedSquares_.has_square(move.dst());
+        return !attackedSquares_.has_square(dst);
+    }
+
+    if (pinRays_.has_square(src)) {
+        if (movingPiece == PieceType::KNIGHT) {
+            return false;
+        }
+
+        const Square ourKingSquare = king_square(sideToMove_);
+        const bool   alignedWithKing =
+            is_diagonal_to(dst, ourKingSquare) || is_orthogonal_to(dst, ourKingSquare);
+
+        if (!alignedWithKing) {
+            return false;
+        }
+
+        const Bitboard kingToSrc = Bitboard::generate_line(ourKingSquare, src);
+        const Bitboard kingToDst = Bitboard::generate_line(ourKingSquare, dst);
+        return kingToSrc.has_square(dst) || kingToDst.has_square(src);
     }
 
     return true;
@@ -496,7 +516,7 @@ void Position::generate_check_info()
     }
 
     for (const Square src : pieces(them, PieceType::KING)) {
-        const Bitboard attack          = generate_attacks<PieceType::KING>(src, Bitboard{});
+        const Bitboard attack = generate_attacks<PieceType::KING>(src, Bitboard{});
         attackedSquares_ |= attack;
     }
 
@@ -509,9 +529,9 @@ void Position::generate_check_info()
             kingAttackers_ += 1;
         }
         else if (is_diagonal_to(src, ourKingSquare)) {
-            const Bitboard pinRay = Bitboard::generate_between(src, ourKingSquare);
-            const int piecesBetween = (pinRay & pieces()).pop_count();
-            const int ourPiecesBetween = (pinRay & pieces(us)).pop_count();
+            const Bitboard pinRay           = Bitboard::generate_between(src, ourKingSquare);
+            const int      piecesBetween    = (pinRay & pieces()).pop_count();
+            const int      ourPiecesBetween = (pinRay & pieces(us)).pop_count();
 
             if (piecesBetween == 1 && ourPiecesBetween == 1) {
                 pinRays_ |= pinRay;
@@ -528,8 +548,8 @@ void Position::generate_check_info()
             kingAttackers_ += 1;
         }
         else if (is_orthogonal_to(src, ourKingSquare)) {
-            const Bitboard pinRay = Bitboard::generate_between(src, ourKingSquare);
-            const int      piecesBetween = (pinRay & pieces()).pop_count();
+            const Bitboard pinRay           = Bitboard::generate_between(src, ourKingSquare);
+            const int      piecesBetween    = (pinRay & pieces()).pop_count();
             const int      ourPiecesBetween = (pinRay & pieces(us)).pop_count();
 
             if (piecesBetween == 1 && ourPiecesBetween == 1) {
@@ -547,8 +567,8 @@ void Position::generate_check_info()
             kingAttackers_ += 1;
         }
         else if (is_diagonal_to(src, ourKingSquare) || is_orthogonal_to(src, ourKingSquare)) {
-            const Bitboard pinRay = Bitboard::generate_between(src, ourKingSquare);
-            const int      piecesBetween = (pinRay & pieces()).pop_count();
+            const Bitboard pinRay           = Bitboard::generate_between(src, ourKingSquare);
+            const int      piecesBetween    = (pinRay & pieces()).pop_count();
             const int      ourPiecesBetween = (pinRay & pieces(us)).pop_count();
 
             if (piecesBetween == 1 && ourPiecesBetween == 1) {
