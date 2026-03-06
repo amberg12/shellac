@@ -411,6 +411,7 @@ void Position::apply_move(Move move)
     assert(color_of(movingPiece) == us);
     assert(capturedPiece == Piece::NONE || color_of(capturedPiece) == them);
 
+    const Square previousEnPassantSquare = enPassantSquare_;
     clear_en_passant();
 
     if (move.is_castle()) {
@@ -447,14 +448,15 @@ void Position::apply_move(Move move)
     else {
         fiftyMoveRule_ = 0;
         if (move.is_en_passant()) {
-            set_piece(enPassantSquare_, movingPiece);
+            assert(previousEnPassantSquare == dst);
+            set_piece(dst, movingPiece);
             remove_piece(src);
 
             if (us == Color::WHITE) {
-                remove_piece(enPassantSquare_ + Direction::SOUTH);
+                remove_piece(dst + Direction::SOUTH);
             }
             else {
-                remove_piece(enPassantSquare_ + Direction::NORTH);
+                remove_piece(dst + Direction::NORTH);
             }
         }
         else {
