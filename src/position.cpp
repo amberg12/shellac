@@ -231,14 +231,14 @@ bool Position::is_legal(const Move move) const
         return !move.is_castle() && movingPiece == PieceType::KING;
     }
 
+    if (movingPiece == PieceType::KING) {
+        return !attackedSquares_.has_square(dst);
+    }
+
     if (kingAttackers_ == 1) {
         if (!blockers_.has_square(dst)) {
             return false;
         }
-    }
-
-    if (movingPiece == PieceType::KING) {
-        return !attackedSquares_.has_square(dst);
     }
 
     if (pinRays_.has_square(src)) {
