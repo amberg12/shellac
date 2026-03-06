@@ -19,4 +19,48 @@
 #include "bitboard.h"
 
 namespace shellac {
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::KNIGHT>, Bitboard>
+generate_attacks<PieceType::KNIGHT>(const Square src, Bitboard)
+{
+    const auto origin = Bitboard{src};
+    Bitboard   out    = Bitboard{};
+    out |= origin.shift(Direction::NORTH).shift(Direction::NORTH).shift(Direction::EAST);
+    out |= origin.shift(Direction::NORTH).shift(Direction::NORTH).shift(Direction::WEST);
+    out |= origin.shift(Direction::EAST).shift(Direction::EAST).shift(Direction::NORTH);
+    out |= origin.shift(Direction::EAST).shift(Direction::EAST).shift(Direction::SOUTH);
+    out |= origin.shift(Direction::SOUTH).shift(Direction::SOUTH).shift(Direction::EAST);
+    out |= origin.shift(Direction::SOUTH).shift(Direction::SOUTH).shift(Direction::WEST);
+    out |= origin.shift(Direction::WEST).shift(Direction::WEST).shift(Direction::NORTH);
+    out |= origin.shift(Direction::WEST).shift(Direction::WEST).shift(Direction::SOUTH);
+    return out;
+}
+
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::BISHOP>, Bitboard>
+generate_attacks<PieceType::BISHOP>(const Square src, const Bitboard blockers)
+{
+    return Bitboard{};
+}
+
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::ROOK>, Bitboard>
+generate_attacks<PieceType::ROOK>(const Square src, const Bitboard blockers)
+{
+    return Bitboard{};
+}
+
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::QUEEN>, Bitboard>
+generate_attacks<PieceType::QUEEN>(const Square src, const Bitboard blockers)
+{
+    const Bitboard orthogonalAttacks = generate_attacks<PieceType::ROOK>(src, blockers);
+    const Bitboard diagonalAttacks   = generate_attacks<PieceType::BISHOP>(src, blockers);
+    return orthogonalAttacks | diagonalAttacks;
+}
+
+Bitboard generate_pawn_attacks(Color color, Square src, Bitboard blockers)
+{
+    return Bitboard{};
+}
 } // namespace shellac

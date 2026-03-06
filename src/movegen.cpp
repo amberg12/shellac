@@ -23,59 +23,40 @@
 namespace shellac {
 namespace {
 
-template <MoveType MOVE_TYPE, Color SIDE_TO_MOVE, PieceType PIECE_TYPE>
-std::enable_if_t<is_pawn_v<PIECE_TYPE>, ScoredMove*> generate_moves_for(ScoredMove*     begin,
-                                                                        const Position& position)
+ScoredMove* generate_pawn_moves(ScoredMove* begin, const Position& position)
 {
-    constexpr Direction DIRECTION = []()
-    {
-        if constexpr (SIDE_TO_MOVE == Color::WHITE) {
-            return Direction::NORTH;
-        }
+    return begin;
+}
 
-        return Direction::SOUTH;
-    }();
+template <MoveType MOVE_TYPE, PieceType PIECE_TYPE>
+ScoredMove* generate_moves_for(ScoredMove* begin, const Position& position)
+{
+    for (const Square src : position.pieces(position.side_to_move(), PIECE_TYPE)) {
+        const Bitboard attacks = generate_attacks<PIECE_TYPE>(src, position.pieces());
+        const Bitboard destinations = attacks & ~position.pieces(position.side_to_move());
 
-    for (const Square src : position.pieces(SIDE_TO_MOVE, PieceType::PAWN)) {
-        const Square potentialTarget = src + DIRECTION;
-        if (position.piece_at(potentialTarget) == Piece::NONE) {
-            *begin++ = ScoredMove{src, potentialTarget};
+        for (const Square dst : destinations) {
+            *begin++ = ScoredMove(src, dst);
         }
     }
 
     return begin;
 }
 
-template <MoveType MOVE_TYPE, Color SIDE_TO_MOVE, PieceType PIECE_TYPE>
-std::enable_if_t<is_knight_v<PIECE_TYPE>, ScoredMove*> generate_moves_for(ScoredMove*     begin,
-                                                                          const Position& position)
+ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
 {
     return begin;
 }
 
-template <MoveType MOVE_TYPE, Color SIDE_TO_MOVE, PieceType PIECE_TYPE>
-std::enable_if_t<is_slider_v<PIECE_TYPE>, ScoredMove*> generate_moves_for(ScoredMove*     begin,
-                                                                          const Position& position)
+template <MoveType MOVE_TYPE>
+ScoredMove* generate_moves(ScoredMove* begin, const Position& position)
 {
-    return begin;
-}
-
-template <MoveType MOVE_TYPE, Color SIDE_TO_MOVE, PieceType PIECE_TYPE>
-std::enable_if_t<is_king_v<PIECE_TYPE>, ScoredMove*> generate_moves_for(ScoredMove*     begin,
-                                                                        const Position& position)
-{
-    return begin;
-}
-
-template <MoveType MOVE_TYPE, Color SIDE_TO_MOVE>
-ScoredMove* generate_legal_moves(ScoredMove* begin, const Position& position)
-{
-    begin = generate_moves_for<MOVE_TYPE, SIDE_TO_MOVE, PieceType::PAWN>(begin, position);
-    begin = generate_moves_for<MOVE_TYPE, SIDE_TO_MOVE, PieceType::KNIGHT>(begin, position);
-    begin = generate_moves_for<MOVE_TYPE, SIDE_TO_MOVE, PieceType::BISHOP>(begin, position);
-    begin = generate_moves_for<MOVE_TYPE, SIDE_TO_MOVE, PieceType::ROOK>(begin, position);
-    begin = generate_moves_for<MOVE_TYPE, SIDE_TO_MOVE, PieceType::QUEEN>(begin, position);
-    begin = generate_moves_for<MOVE_TYPE, SIDE_TO_MOVE, PieceType::KING>(begin, position);
+    begin = generate_pawn_moves(begin, position);
+    begin = generate_moves_for<MOVE_TYPE, PieceType::KNIGHT>(begin, position);
+    begin = generate_moves_for<MOVE_TYPE, PieceType::BISHOP>(begin, position);
+    begin = generate_moves_for<MOVE_TYPE, PieceType::ROOK>(begin, position);
+    begin = generate_moves_for<MOVE_TYPE, PieceType::QUEEN>(begin, position);
+    begin = generate_king_moves(begin, position);
     return begin;
 }
 
@@ -85,15 +66,10 @@ template <MoveType Mt>
 MoveList MoveList::from_position(const Position& position)
 {
     MoveList list{};
-    if (position.side_to_move() == Color::WHITE) {
-        list.end_ = generate_legal_moves<Mt, Color::WHITE>(list.buffer_, position);
-    }
-    else {
-        list.end_ = generate_legal_moves<Mt, Color::BLACK>(list.buffer_, position);
-    }
+    list.end_ = generate_moves<Mt>(list.buffer_, position);
     return list;
 }
 
-template MoveList MoveList::from_position<MoveType::LEGAL>(const Position& position);
+template MoveList MoveList::from_position<MoveType::NORMAL>(const Position& position);
 
 } // namespace shellac

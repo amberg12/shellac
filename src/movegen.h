@@ -30,7 +30,7 @@ class Position;
 
 enum class MoveType
 {
-    LEGAL,
+    NORMAL,
 };
 
 class ScoredMove : public Move
@@ -62,7 +62,7 @@ private:
 class MoveList
 {
 public:
-    template <MoveType Mt = MoveType::LEGAL>
+    template <MoveType Mt = MoveType::NORMAL>
     static MoveList from_position(const Position& position);
 
     [[nodiscard]] ScoredMove* begin()
