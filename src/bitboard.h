@@ -69,6 +69,11 @@ public:
         return static_cast<Square>(ctz());
     }
 
+    [[nodiscard]] constexpr bool is_empty() const
+    {
+        return bitboard_ == 0;
+    }
+
     [[nodiscard]] constexpr Bitboard shift(Direction direction) const;
 
     constexpr Bitboard& operator|=(const Bitboard rhs)
@@ -108,6 +113,16 @@ public:
     {
         assert(rhs >= 0);
         return Bitboard{bitboard_ >> rhs};
+    }
+
+    constexpr bool operator==(const Bitboard& rhs) const
+    {
+        return bitboard_ == rhs.bitboard_;
+    }
+
+    constexpr bool operator!=(const Bitboard& rhs) const
+    {
+        return bitboard_ != rhs.bitboard_;
     }
 
     struct Iterator
@@ -213,6 +228,7 @@ constexpr Bitboard Bitboard::shift(const Direction direction) const
     case Direction::WEST:
         out &= ~FILE_A;
         break;
+    default:;
     }
 
     if (static_cast<int>(direction) < 0) {

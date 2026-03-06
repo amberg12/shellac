@@ -399,6 +399,7 @@ enum class Direction
     SOUTH = -8,
     EAST  = 1,
     WEST  = -1,
+    NONE = 0,
 };
 
 template <>

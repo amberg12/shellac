@@ -18,6 +18,8 @@
 
 #include "bitboard.h"
 
+#include <array>
+
 namespace shellac {
 template <>
 std::enable_if_t<!is_pawn_v<PieceType::KNIGHT>, Bitboard>
@@ -40,14 +42,54 @@ template <>
 std::enable_if_t<!is_pawn_v<PieceType::BISHOP>, Bitboard>
 generate_attacks<PieceType::BISHOP>(const Square src, const Bitboard blockers)
 {
-    return Bitboard{};
+    constexpr std::array<std::pair<Direction, Direction>, 4> OFFSETS = {
+        std::pair{Direction::NORTH, Direction::EAST},
+        {Direction::NORTH, Direction::WEST},
+        {Direction::SOUTH, Direction::EAST},
+        {Direction::SOUTH, Direction::WEST},
+    };
+
+    Bitboard out{};
+
+    for (const auto [a, b] : OFFSETS) {
+        auto scanner = Bitboard{src};
+        while (!scanner.is_empty()) {
+            scanner = scanner.shift(a).shift(b);
+            out |= scanner;
+            if (!(scanner & blockers).is_empty()) {
+                break;
+            }
+        }
+    }
+
+    return out;
 }
 
 template <>
 std::enable_if_t<!is_pawn_v<PieceType::ROOK>, Bitboard>
 generate_attacks<PieceType::ROOK>(const Square src, const Bitboard blockers)
 {
-    return Bitboard{};
+    constexpr std::array<Direction, 4> OFFSETS = {
+        Direction::NORTH,
+        Direction::EAST,
+        Direction::SOUTH,
+        Direction::WEST,
+    };
+
+    Bitboard out{};
+
+    for (const Direction direction : OFFSETS) {
+        auto scanner = Bitboard{src};
+        while (!scanner.is_empty()) {
+            scanner = scanner.shift(direction);
+            out |= scanner;
+            if (!(scanner & blockers).is_empty()) {
+                break;
+            }
+        }
+    }
+
+    return out;
 }
 
 template <>
