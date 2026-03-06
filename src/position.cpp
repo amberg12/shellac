@@ -223,12 +223,35 @@ Move Position::parse_move(const std::string& move) const
 
 bool Position::is_legal(const Move move) const
 {
+    const Color     us          = side_to_move();
+    const Color     them        = ~us;
     const Square    src         = move.src();
     const Square    dst         = move.dst();
     const PieceType movingPiece = type_of(piece_at(src));
 
     if (kingAttackers_ >= 2) {
         return !move.is_castle() && movingPiece == PieceType::KING;
+    }
+
+    if (move.is_en_passant()) {
+        const Direction direction =
+            sideToMove_ == Color::WHITE ? Direction::SOUTH : Direction::NORTH;
+        const Bitboard appliedBoard =
+            pieces() ^ Bitboard(enPassantSquare_) ^ Bitboard(src) ^ Bitboard(dst + direction);
+
+        const Bitboard rookAttacks =
+            generate_attacks<PieceType::ROOK>(king_square(us), appliedBoard);
+
+        if (rookAttacks.intersects(pieces(them, PieceType::ROOK, PieceType::QUEEN))) {
+            return false;
+        }
+
+        const Bitboard bishopAttacks =
+            generate_attacks<PieceType::BISHOP>(king_square(us), appliedBoard);
+
+        if (bishopAttacks.intersects(pieces(them, PieceType::BISHOP, PieceType::QUEEN))) {
+            return false;
+        }
     }
 
     if (move.is_castle()) {

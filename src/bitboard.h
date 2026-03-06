@@ -102,7 +102,7 @@ public:
         *this &= ~Bitboard(square);
     }
 
-    constexpr bool has_square(const Square square) const
+    [[nodiscard]] constexpr bool has_square(const Square square) const
     {
         return !(*this & Bitboard(square)).is_empty();
     }
@@ -143,6 +143,17 @@ public:
     }
 
     [[nodiscard]] constexpr Bitboard shift(Direction direction) const;
+
+    constexpr Bitboard& operator^=(const Bitboard rhs)
+    {
+        *this = *this ^ rhs;
+        return *this;
+    }
+
+    constexpr Bitboard operator^(const Bitboard rhs) const
+    {
+        return Bitboard{bitboard_ ^ rhs.bitboard_};
+    }
 
     constexpr Bitboard& operator|=(const Bitboard rhs)
     {
