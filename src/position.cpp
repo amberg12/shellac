@@ -231,6 +231,32 @@ bool Position::is_legal(const Move move) const
         return !move.is_castle() && movingPiece == PieceType::KING;
     }
 
+    if (move.is_castle()) {
+        if (kingAttackers_ != 0) {
+            return false;
+        }
+
+        if (dst == Square::C1) {
+            return !(attackedSquares_.has_square(Square::C1) ||
+                     attackedSquares_.has_square(Square::D1));
+        }
+
+        if (dst == Square::G1) {
+            return !(attackedSquares_.has_square(Square::F1) ||
+                     attackedSquares_.has_square(Square::G1));
+        }
+
+        if (dst == Square::C8) {
+            return !(attackedSquares_.has_square(Square::C8) ||
+                     attackedSquares_.has_square(Square::D8));
+        }
+
+        if (dst == Square::G8) {
+            return !(attackedSquares_.has_square(Square::F8) ||
+                     attackedSquares_.has_square(Square::G8));
+        }
+    }
+
     if (movingPiece == PieceType::KING) {
         return !attackedSquares_.has_square(dst);
     }

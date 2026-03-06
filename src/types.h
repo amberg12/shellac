@@ -541,17 +541,17 @@ public:
 
     [[nodiscard]] bool is_en_passant() const
     {
-        return repr_ & EN_PASSANT;
+        return (repr_ & SPECIAL) == EN_PASSANT;
     }
 
     [[nodiscard]] bool is_castle() const
     {
-        return repr_ & CASTLING;
+        return (repr_ & SPECIAL) == CASTLING;
     }
 
     [[nodiscard]] bool is_promotion() const
     {
-        return repr_ & PROMOTION;
+        return (repr_ & PROMOTION) == PROMOTION;
     }
 
     [[nodiscard]] bool is_null() const
