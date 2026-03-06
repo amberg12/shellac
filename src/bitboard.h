@@ -102,6 +102,11 @@ public:
         *this &= ~Bitboard(square);
     }
 
+    constexpr bool has_square(const Square square) const
+    {
+        return !(*this & Bitboard(square)).is_empty();
+    }
+
     [[nodiscard]] constexpr int pop_count() const
     {
         return shellac::pop_count(bitboard_);

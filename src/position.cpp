@@ -228,6 +228,10 @@ bool Position::is_legal(const Move move) const
         return !move.is_castle() && movingPiece == PieceType::KING;
     }
 
+    if (movingPiece == PieceType::KING) {
+        return !attackedSquares_.has_square(move.dst());
+    }
+
     return true;
 }
 
