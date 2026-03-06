@@ -101,8 +101,52 @@ generate_attacks<PieceType::QUEEN>(const Square src, const Bitboard blockers)
     return orthogonalAttacks | diagonalAttacks;
 }
 
-Bitboard generate_pawn_attacks(Color color, Square src, Bitboard blockers)
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::KING>, Bitboard>
+generate_attacks<PieceType::KING>(const Square src, const Bitboard)
 {
-    return Bitboard{};
+    const Bitboard origin = Bitboard{src};
+    Bitboard       out{};
+
+    out |= origin.shift(Direction::NORTH);
+    out |= origin.shift(Direction::SOUTH);
+    out |= origin.shift(Direction::EAST);
+    out |= origin.shift(Direction::WEST);
+    out |= origin.shift(Direction::NORTH).shift(Direction::EAST);
+    out |= origin.shift(Direction::NORTH).shift(Direction::WEST);
+    out |= origin.shift(Direction::SOUTH).shift(Direction::EAST);
+    out |= origin.shift(Direction::SOUTH).shift(Direction::WEST);
+
+    return out;
+}
+
+Bitboard generate_pawn_destinations(const Color color, const Square src, const Bitboard blockers)
+{
+    const Rank      homeRank  = color == Color::WHITE ? Rank::R_2 : Rank::R_7;
+    const Direction direction = color == Color::WHITE ? Direction::NORTH : Direction::SOUTH;
+    Bitboard        out       = generate_pawn_attacks(color, src, blockers);
+
+    const Bitboard oneAhead = Bitboard{src}.shift(direction);
+    if ((blockers & oneAhead).is_empty()) {
+        out |= oneAhead;
+
+        if (rank_of(src) == homeRank) {
+            const Bitboard twoAhead = oneAhead.shift(direction);
+            if ((blockers & twoAhead).is_empty()) {
+                out |= twoAhead;
+            }
+        }
+    }
+
+    return out;
+}
+
+Bitboard generate_pawn_attacks(const Color color, const Square src, const Bitboard blockers)
+{
+    const Direction direction = color == Color::WHITE ? Direction::NORTH : Direction::SOUTH;
+    const Bitboard  lhs       = Bitboard{src}.shift(direction).shift(Direction::WEST);
+    const Bitboard  rhs       = Bitboard{src}.shift(direction).shift(Direction::EAST);
+
+    return (lhs | rhs) & blockers;
 }
 } // namespace shellac

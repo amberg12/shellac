@@ -224,6 +224,30 @@ Color Position::side_to_move() const
     return sideToMove_;
 }
 
+std::optional<Square> Position::en_passant() const
+{
+    if (!is_valid(enPassantSquare_)) {
+        return std::nullopt;
+    }
+    else {
+        return enPassantSquare_;
+    }
+}
+
+bool Position::can_castle_kingside(const Color color) const
+{
+    const auto castlingRight = static_cast<CastlingRights>(
+        color == Color::WHITE ? CastlingRights::WHITE_KING : CastlingRights::BLACK_KING);
+    return castlingRights_ & castlingRight;
+}
+
+bool Position::can_castle_queenside(const Color color) const
+{
+    const auto castlingRight = static_cast<CastlingRights>(
+        color == Color::WHITE ? CastlingRights::WHITE_QUEEN : CastlingRights::BLACK_QUEEN);
+    return castlingRights_ & castlingRight;
+}
+
 Piece Position::piece_at(const Square square) const
 {
     return mailBox_[underlying(square)];

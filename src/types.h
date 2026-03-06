@@ -399,7 +399,7 @@ enum class Direction
     SOUTH = -8,
     EAST  = 1,
     WEST  = -1,
-    NONE = 0,
+    NONE  = 0,
 };
 
 template <>
@@ -493,6 +493,8 @@ public:
 
     static Move create_promotion(const Square src, const Square dst, const PieceType to)
     {
+        assert(to == PieceType::KNIGHT || to == PieceType::BISHOP || to == PieceType::ROOK ||
+               to == PieceType::QUEEN);
         Move out{src, dst};
         out.repr_ |= PROMOTION;
         out.repr_ |= (underlying(to) - underlying(PieceType::KNIGHT)) << 12;

@@ -50,6 +50,21 @@ public:
     {
     }
 
+    static ScoredMove create_en_passant(const Square src, const Square dst)
+    {
+        return ScoredMove(Move::create_en_passant(src, dst));
+    }
+
+    static ScoredMove create_promotion(const Square src, const Square dst, const PieceType pieceType)
+    {
+        return ScoredMove(Move::create_promotion(src, dst, pieceType));
+    }
+
+    static ScoredMove create_castle(const Square src, const Square dst)
+    {
+        return ScoredMove(Move::create_castle(src, dst));
+    }
+
     void set_score(const Score score)
     {
         score_ = score;

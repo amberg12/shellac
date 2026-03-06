@@ -25,6 +25,37 @@ namespace {
 
 ScoredMove* generate_pawn_moves(ScoredMove* begin, const Position& position)
 {
+    const Bitboard enPassantMask = [&]()
+    {
+        if (position.en_passant().has_value()) {
+            return Bitboard(position.en_passant().value());
+        }
+
+        return Bitboard{};
+    }();
+
+    for (const Square src : position.pieces(position.side_to_move(), PieceType::PAWN)) {
+        const Bitboard blockers = position.pieces() | enPassantMask;
+        const Bitboard destinations =
+            generate_pawn_destinations(position.side_to_move(), src, blockers);
+        const Bitboard validDestinations = destinations & ~position.pieces(position.side_to_move());
+
+        for (const Square dst : validDestinations) {
+            if (!(Bitboard{dst} & enPassantMask).is_empty()) {
+                *begin++ = ScoredMove::create_en_passant(src, dst);
+            }
+            else if (rank_of(dst) == Rank::R_1 || rank_of(dst) == Rank::R_8) {
+                *begin++ = ScoredMove::create_promotion(src, dst, PieceType::QUEEN);
+                *begin++ = ScoredMove::create_promotion(src, dst, PieceType::ROOK);
+                *begin++ = ScoredMove::create_promotion(src, dst, PieceType::BISHOP);
+                *begin++ = ScoredMove::create_promotion(src, dst, PieceType::KNIGHT);
+            }
+            else {
+                *begin++ = ScoredMove{src, dst};
+            }
+        }
+    }
+
     return begin;
 }
 
@@ -32,7 +63,7 @@ template <MoveType MOVE_TYPE, PieceType PIECE_TYPE>
 ScoredMove* generate_moves_for(ScoredMove* begin, const Position& position)
 {
     for (const Square src : position.pieces(position.side_to_move(), PIECE_TYPE)) {
-        const Bitboard attacks = generate_attacks<PIECE_TYPE>(src, position.pieces());
+        const Bitboard attacks      = generate_attacks<PIECE_TYPE>(src, position.pieces());
         const Bitboard destinations = attacks & ~position.pieces(position.side_to_move());
 
         for (const Square dst : destinations) {
@@ -45,6 +76,48 @@ ScoredMove* generate_moves_for(ScoredMove* begin, const Position& position)
 
 ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
 {
+    for (const Square src : position.pieces(position.side_to_move(), PieceType::KING)) {
+        const Bitboard attacks      = generate_attacks<PieceType::KING>(src, position.pieces());
+        const Bitboard destinations = attacks & ~position.pieces(position.side_to_move());
+
+        for (const Square dst : destinations) {
+            *begin++ = ScoredMove(src, dst);
+        }
+
+        if (position.side_to_move() == Color::WHITE && src == Square::E1) {
+            if (position.can_castle_kingside(Color::WHITE) &&
+                position.piece_at(Square::H1) == Piece::W_ROOK &&
+                position.piece_at(Square::F1) == Piece::NONE &&
+                position.piece_at(Square::G1) == Piece::NONE) {
+                *begin++ = ScoredMove::create_castle(src, Square::G1);
+            }
+
+            if (position.can_castle_queenside(Color::WHITE) &&
+                position.piece_at(Square::A1) == Piece::W_ROOK &&
+                position.piece_at(Square::D1) == Piece::NONE &&
+                position.piece_at(Square::C1) == Piece::NONE &&
+                position.piece_at(Square::B1) == Piece::NONE) {
+                *begin++ = ScoredMove::create_castle(src, Square::C1);
+            }
+        }
+        else if (position.side_to_move() == Color::BLACK && src == Square::E8) {
+            if (position.can_castle_kingside(Color::BLACK) &&
+                position.piece_at(Square::H8) == Piece::B_ROOK &&
+                position.piece_at(Square::F8) == Piece::NONE &&
+                position.piece_at(Square::G8) == Piece::NONE) {
+                *begin++ = ScoredMove::create_castle(src, Square::G8);
+            }
+
+            if (position.can_castle_queenside(Color::BLACK) &&
+                position.piece_at(Square::A8) == Piece::B_ROOK &&
+                position.piece_at(Square::D8) == Piece::NONE &&
+                position.piece_at(Square::C8) == Piece::NONE &&
+                position.piece_at(Square::B8) == Piece::NONE) {
+                *begin++ = ScoredMove::create_castle(src, Square::C8);
+            }
+        }
+    }
+
     return begin;
 }
 

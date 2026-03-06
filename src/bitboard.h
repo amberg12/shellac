@@ -258,6 +258,11 @@ template <>
 std::enable_if_t<!is_pawn_v<PieceType::QUEEN>, Bitboard>
 generate_attacks<PieceType::QUEEN>(Square src, Bitboard blockers);
 
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::KING>, Bitboard>
+generate_attacks<PieceType::KING>(Square src, Bitboard blockers);
+
+Bitboard generate_pawn_destinations(Color color, Square src, Bitboard blockers);
 Bitboard generate_pawn_attacks(Color color, Square src, Bitboard blockers);
 
 } // namespace shellac

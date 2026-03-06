@@ -19,6 +19,7 @@
 #ifndef SHELLAC_POSITION_H
 #define SHELLAC_POSITION_H
 #include <array>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -41,6 +42,10 @@ public:
     [[nodiscard]] Move parse_move(const std::string& move) const;
 
     [[nodiscard]] Color side_to_move() const;
+
+    [[nodiscard]] std::optional<Square> en_passant() const;
+    [[nodiscard]] bool                  can_castle_kingside(Color color) const;
+    [[nodiscard]] bool                  can_castle_queenside(Color color) const;
 
     [[nodiscard]] constexpr Bitboard pieces() const;
     [[nodiscard]] constexpr Bitboard pieces(Color color) const;
