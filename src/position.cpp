@@ -170,6 +170,7 @@ Position::Position(const Position& parent, const Move move) :
     fiftyMoveRule_{parent.fiftyMoveRule_ + 1}
 {
     apply_move(move);
+    generate_check_info();
 }
 
 Position::Position(const Position& parent, const Move move, const GameHistory& history) :
