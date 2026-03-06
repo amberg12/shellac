@@ -105,6 +105,7 @@ private:
 
     Bitboard attackedSquares_;
     Bitboard pinRays_;
+    Bitboard blockers_;
     int      kingAttackers_{};
 };
 

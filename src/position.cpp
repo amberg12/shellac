@@ -231,6 +231,12 @@ bool Position::is_legal(const Move move) const
         return !move.is_castle() && movingPiece == PieceType::KING;
     }
 
+    if (kingAttackers_ == 1) {
+        if (!blockers_.has_square(dst)) {
+            return false;
+        }
+    }
+
     if (movingPiece == PieceType::KING) {
         return !attackedSquares_.has_square(dst);
     }
@@ -250,6 +256,7 @@ bool Position::is_legal(const Move move) const
 
         const Bitboard kingToSrc = Bitboard::generate_line(ourKingSquare, src);
         const Bitboard kingToDst = Bitboard::generate_line(ourKingSquare, dst);
+
         return kingToSrc.has_square(dst) || kingToDst.has_square(src);
     }
 
@@ -502,6 +509,7 @@ void Position::generate_check_info()
         attackedSquares_ |= attack;
         if (isAttackingKing) {
             kingAttackers_ += 1;
+            blockers_.set_square(src);
         }
     }
 
@@ -512,6 +520,7 @@ void Position::generate_check_info()
         attackedSquares_ |= attack;
         if (isAttackingKing) {
             kingAttackers_ += 1;
+            blockers_.set_square(src);
         }
     }
 
@@ -527,6 +536,7 @@ void Position::generate_check_info()
         attackedSquares_ |= attack;
         if (isAttackingKing) {
             kingAttackers_ += 1;
+            blockers_ |= Bitboard::generate_line(src, ourKingSquare);
         }
         else if (is_diagonal_to(src, ourKingSquare)) {
             const Bitboard pinRay           = Bitboard::generate_between(src, ourKingSquare);
@@ -546,6 +556,7 @@ void Position::generate_check_info()
         attackedSquares_ |= attack;
         if (isAttackingKing) {
             kingAttackers_ += 1;
+            blockers_ |= Bitboard::generate_line(src, ourKingSquare);
         }
         else if (is_orthogonal_to(src, ourKingSquare)) {
             const Bitboard pinRay           = Bitboard::generate_between(src, ourKingSquare);
@@ -565,6 +576,7 @@ void Position::generate_check_info()
         attackedSquares_ |= attack;
         if (isAttackingKing) {
             kingAttackers_ += 1;
+            blockers_ |= Bitboard::generate_line(src, ourKingSquare);
         }
         else if (is_diagonal_to(src, ourKingSquare) || is_orthogonal_to(src, ourKingSquare)) {
             const Bitboard pinRay           = Bitboard::generate_between(src, ourKingSquare);
