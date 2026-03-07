@@ -64,6 +64,10 @@ public:
     [[nodiscard]] Square king_square(Color color) const;
     [[nodiscard]] Piece  piece_at(Square square) const;
 
+    [[nodiscard]] bool is_threefold() const;
+    [[nodiscard]] bool is_fifty_move() const;
+    [[nodiscard]] bool is_check() const;
+
     [[nodiscard]] bool is_repetition_of(const Position& rhs) const;
 
 private:

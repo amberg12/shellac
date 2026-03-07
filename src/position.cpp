@@ -356,6 +356,21 @@ Piece Position::piece_at(const Square square) const
     return mailBox_[underlying(square)];
 }
 
+bool Position::is_threefold() const
+{
+    return repetitions_ >= 2;
+}
+
+bool Position::is_fifty_move() const
+{
+    return fiftyMoveRule_ >= 50;
+}
+
+bool Position::is_check() const
+{
+    return kingAttackers_ != 0;
+}
+
 bool Position::is_repetition_of(const Position& rhs) const
 {
     const bool sideToMoveEq     = sideToMove_ == rhs.sideToMove_;

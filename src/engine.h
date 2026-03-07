@@ -32,6 +32,22 @@ namespace shellac {
 
 struct SearchLimits
 {
+    std::optional<std::vector<Move>> searchMoves = std::nullopt;
+
+    std::optional<int> whiteTime = std::nullopt;
+    std::optional<int> blackTime = std::nullopt;
+    std::optional<int> whiteInc  = std::nullopt;
+    std::optional<int> blackInc  = std::nullopt;
+
+    std::optional<int> movesToGo = std::nullopt;
+
+    std::optional<int> depth = std::nullopt;
+    std::optional<int> nodes = std::nullopt;
+    std::optional<int> mate  = std::nullopt;
+
+    std::optional<int> moveTime = std::nullopt;
+
+    bool infinite = false;
 };
 
 class Engine
