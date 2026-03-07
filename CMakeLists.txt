@@ -36,6 +36,8 @@ add_executable(${EXE_NAME} src/main.cpp
         src/movegen.cpp
         src/movegen.h
         src/threadpool.cpp
-        src/threadpool.h)
+        src/threadpool.h
+        src/search.cpp
+        src/search.h)
 
 target_compile_definitions(${EXE_NAME} PRIVATE BUILD_IDENTIFIER="${GIT_BRANCH}-${GIT_COMMIT}")

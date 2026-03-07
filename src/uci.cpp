@@ -58,6 +58,16 @@ void UciEngine::loop()
 
             engine_.set_position(fen, moves);
         }
+        else if (token == "isready") {
+            std::cout << "readyok" << std::endl;
+        }
+        else if (token == "uci") {
+            std::cout << "id name Shellac " << BuildIdentifier << std::endl;
+            std::cout << "uciok" << std::endl;
+        }
+        else if (token == "go") {
+            engine_.go(SearchLimits{});
+        }
         else if (token == "d") {
             std::cout << engine_.display();
         }
@@ -73,6 +83,8 @@ void UciEngine::loop()
             iss >> path;
             engine_.perft_suite(depth, path);
         }
+
+        std::cout << std::flush;
     }
 }
 } // namespace shellac

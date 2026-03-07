@@ -25,14 +25,22 @@
 #include <vector>
 
 #include "position.h"
+#include "search.h"
 #include "threadpool.h"
 
 namespace shellac {
 
+struct SearchLimits
+{
+};
+
 class Engine
 {
 public:
+    // Normal behaviour.
     void set_position(const std::string& fen, const std::vector<std::string>& moves);
+    void go(const SearchLimits& searchLimits);
+    void stop();
 
     // Our extensions.
     [[nodiscard]] std::string display() const;
@@ -40,8 +48,10 @@ public:
     void                      perft_suite(int maxDepth, const std::string& path);
 
 private:
-    GameHistory gameHistory_{std::string(STARTING_POSITION), {}};
-    ThreadPool  threadPool_;
+    GameHistory               gameHistory_{std::string(STARTING_POSITION), {}};
+    std::shared_ptr<Searcher> searcher_ = std::make_shared<Searcher>();
+    std::mutex                searcherMutex_;
+    ThreadPool                threadPool_;
 };
 
 } // namespace shellac

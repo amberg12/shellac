@@ -61,6 +61,24 @@ void Engine::set_position(const std::string& fen, const std::vector<std::string>
     gameHistory_ = GameHistory{fen, moves};
 }
 
+void Engine::go(const SearchLimits& searchLimits)
+{
+    auto run_search = [this, searchLimits]()
+    {
+        const SearchLimits limits      = searchLimits;
+        const GameHistory  gameHistory = this->gameHistory_;
+        std::lock_guard    guard{searcherMutex_};
+        searcher_->begin_search(gameHistory, limits);
+    };
+
+    threadPool_.enqueue(run_search);
+}
+
+void Engine::stop()
+{
+    searcher_->stop_searching();
+}
+
 std::string Engine::display() const
 {
     std::ostringstream out;
