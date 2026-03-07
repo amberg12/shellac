@@ -18,7 +18,9 @@
 
 #include "engine.h"
 
+#include <atomic>
 #include <fstream>
+#include <mutex>
 #include <sstream>
 
 #include "movegen.h"
@@ -88,11 +90,10 @@ void Engine::perft(const int depth) const
 
 void Engine::perft_suite(const int maxDepth, const std::string& path)
 {
-    const auto run_line = [](const int maxDepth, const std::string line)
-    {
-        if (line.empty())
-            return;
+    std::mutex ioMutex;
 
+    const auto run_line = [](const int maxDepth, const std::string& line)
+    {
         std::stringstream ss(line);
 
         std::string fen;
@@ -100,27 +101,34 @@ void Engine::perft_suite(const int maxDepth, const std::string& path)
 
         Position position = Position::from_fen(fen);
 
-        std::string token;
+        std::string   token;
+        std::uint64_t expected = 0;
+        bool          found    = false;
 
         while (std::getline(ss, token, ';')) {
             std::stringstream tok(token);
 
-            char          d;
-            int           depth;
-            std::uint64_t expected;
+            char d;
+            int  depth;
 
             tok >> d >> depth >> expected;
 
-            if (depth > maxDepth)
-                continue;
-
-            const uint64_t result = run_perft<false>(position, depth);
-
-            if (result != expected) {
-                std::cout << position.to_fen() << '\n'
-                          << "Depth " << depth << " FAIL expected " << expected << " got " << result
-                          << '\n';
+            if (depth == maxDepth) {
+                found = true;
+                break;
             }
+        }
+
+        if (!found) {
+            return;
+        }
+
+        const uint64_t result = run_perft<false>(position, maxDepth);
+
+        if (result != expected) {
+            std::cout << position.to_fen() << '\n'
+                      << "Depth " << maxDepth << " FAIL expected " << expected << " got " << result
+                      << '\n';
         }
     };
 
@@ -130,11 +138,33 @@ void Engine::perft_suite(const int maxDepth, const std::string& path)
         return;
     }
 
-    std::string line;
+    std::string                    line;
+    std::vector<std::string>       lines;
     std::vector<std::future<void>> futures;
-
     while (std::getline(file, line)) {
-        futures.push_back(threadPool_.enqueue(run_line, maxDepth, line));
+        if (line.empty()) {
+            continue;
+        }
+
+        lines.push_back(line);
+    }
+
+    const int       futureSum = static_cast<int>(lines.size());
+    std::atomic_int ranTests{0};
+
+    for (const auto& suiteLine : lines) {
+        futures.push_back(threadPool_.enqueue(
+            [&, suiteLine]
+            {
+                run_line(maxDepth, suiteLine);
+                const int done = ranTests.fetch_add(1, std::memory_order_relaxed) + 1;
+                const int step = std::max(1, futureSum / 20);
+
+                if (done % step == 0 || done == futureSum) {
+                    std::lock_guard lock(ioMutex);
+                    std::cout << done << '/' << futureSum << '\n' << std::flush;
+                }
+            }));
     }
 
     for (auto& future : futures) {
