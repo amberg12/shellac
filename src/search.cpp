@@ -124,7 +124,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
 {
     gameHistory_ = history;
     bestMove_    = Move{};
-    stopSearch_.store(true);
+    stopSearch_.store(false);
 
     delete timeManager_;
     timeManager_ = new TimeManager(limits, history.current_position().side_to_move());
@@ -140,7 +140,9 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
         search_root(depth);
     }
 
-    stop_searching();
+    if (stopSearch_.load() == false) {
+        stop_searching();
+    }
 }
 
 void Searcher::stop_searching()

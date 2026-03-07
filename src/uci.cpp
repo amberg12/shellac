@@ -17,19 +17,44 @@
  */
 
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "uci.h"
-
-#include <vector>
 
 #include "types.h"
 
 namespace shellac {
+namespace {
+bool is_go_keyword(const std::string& token)
+{
+    return token == "searchmoves" || token == "ponder" || token == "wtime" ||
+        token == "btime" || token == "winc" || token == "binc" || token == "movestogo" ||
+        token == "depth" || token == "nodes" || token == "mate" || token == "movetime" ||
+        token == "infinite";
+}
+
+std::optional<int> parse_int_token(const std::string& token)
+{
+    int                value = 0;
+    std::istringstream parser{token};
+
+    if ((parser >> value) && parser.eof()) {
+        return value;
+    }
+
+    return std::nullopt;
+}
+} // namespace
+
 void UciEngine::loop()
 {
-    std::string token, line;
+    std::string              token, line;
+    std::string              currentFen = STARTING_POSITION;
+    std::vector<std::string> currentMoves;
+
     while (token != "quit") {
         std::getline(std::cin, line);
         std::istringstream iss{line};
@@ -56,7 +81,9 @@ void UciEngine::loop()
                 moves.push_back(token);
             }
 
-            engine_.set_position(fen, moves);
+            currentFen   = fen;
+            currentMoves = moves;
+            engine_.set_position(currentFen, currentMoves);
         }
         else if (token == "isready") {
             std::cout << "readyok" << std::endl;
@@ -66,7 +93,74 @@ void UciEngine::loop()
             std::cout << "uciok" << std::endl;
         }
         else if (token == "go") {
-            engine_.go(SearchLimits{});
+            SearchLimits             limits{};
+            std::vector<std::string> args;
+
+            while (iss >> token) {
+                args.push_back(token);
+            }
+
+            for (size_t i = 0; i < args.size(); ++i) {
+                const std::string& arg = args[i];
+
+                const auto parse_optional_int = [&](std::optional<int>& field)
+                {
+                    if (i + 1 >= args.size()) {
+                        return;
+                    }
+
+                    if (const auto parsed = parse_int_token(args[i + 1]); parsed.has_value()) {
+                        field = *parsed;
+                        ++i;
+                    }
+                };
+
+                if (arg == "searchmoves") {
+                    std::vector<Move> allowedMoves;
+                    const GameHistory history{currentFen, currentMoves};
+
+                    while (i + 1 < args.size() && !is_go_keyword(args[i + 1])) {
+                        const std::string& moveString = args[++i];
+                        allowedMoves.push_back(history.current_position().parse_move(moveString));
+                    }
+
+                    if (!allowedMoves.empty()) {
+                        limits.searchMoves = allowedMoves;
+                    }
+                }
+                else if (arg == "wtime") {
+                    parse_optional_int(limits.whiteTime);
+                }
+                else if (arg == "btime") {
+                    parse_optional_int(limits.blackTime);
+                }
+                else if (arg == "winc") {
+                    parse_optional_int(limits.whiteInc);
+                }
+                else if (arg == "binc") {
+                    parse_optional_int(limits.blackInc);
+                }
+                else if (arg == "movestogo") {
+                    parse_optional_int(limits.movesToGo);
+                }
+                else if (arg == "depth") {
+                    parse_optional_int(limits.depth);
+                }
+                else if (arg == "nodes") {
+                    parse_optional_int(limits.nodes);
+                }
+                else if (arg == "mate") {
+                    parse_optional_int(limits.mate);
+                }
+                else if (arg == "movetime") {
+                    parse_optional_int(limits.moveTime);
+                }
+                else if (arg == "infinite") {
+                    limits.infinite = true;
+                }
+            }
+
+            engine_.go(limits);
         }
         else if (token == "d") {
             std::cout << engine_.display();
