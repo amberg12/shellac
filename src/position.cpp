@@ -536,16 +536,16 @@ void Position::apply_move(Move move)
 
     sideToMove_ = ~sideToMove_;
 
-    if (src == Square::A1 || dst == Square::A1) {
+    if (src == Square::A1 || dst == Square::A1 || movingPiece == Piece::W_KING) {
         unset_castling(WHITE_QUEEN);
     }
-    if (src == Square::H1 || dst == Square::H1) {
+    if (src == Square::H1 || dst == Square::H1 || movingPiece == Piece::W_KING) {
         unset_castling(WHITE_KING);
     }
-    if (src == Square::A8 || dst == Square::A8) {
+    if (src == Square::A8 || dst == Square::A8 || movingPiece == Piece::B_KING) {
         unset_castling(BLACK_QUEEN);
     }
-    if (src == Square::H8 || dst == Square::H8) {
+    if (src == Square::H8 || dst == Square::H8 || movingPiece == Piece::B_KING) {
         unset_castling(BLACK_KING);
     }
 }
