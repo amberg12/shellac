@@ -196,6 +196,9 @@ void Searcher::search_root(int depth)
         }
     }
 
+    std::cout << "info " << "depth " << depth << " score " << bestScore << " pv " << bestMove
+              << std::endl;
+
     bestMove_ = bestMove;
 }
 
