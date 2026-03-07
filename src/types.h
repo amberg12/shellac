@@ -478,10 +478,10 @@ constexpr bool is_diagonal_to(const Square lhs, const Square rhs)
 {
     assert(is_valid(lhs) && is_valid(rhs));
 
-    const int df = static_cast<int>(underlying(file_of(lhs))) -
-                   static_cast<int>(underlying(file_of(rhs)));
-    const int dr = static_cast<int>(underlying(rank_of(lhs))) -
-                   static_cast<int>(underlying(rank_of(rhs)));
+    const int df =
+        static_cast<int>(underlying(file_of(lhs))) - static_cast<int>(underlying(file_of(rhs)));
+    const int dr =
+        static_cast<int>(underlying(rank_of(lhs))) - static_cast<int>(underlying(rank_of(rhs)));
 
     return std::abs(df) == std::abs(dr);
 }
@@ -565,6 +565,11 @@ public:
         return static_cast<PieceType>(((repr_ & PROMOTE_TO) >> 12) + underlying(PieceType::KNIGHT));
     }
 
+    [[nodiscard]] bool operator==(const Move rhs) const
+    {
+        return repr_ == rhs.repr_;
+    }
+
 private:
     enum Masks : std::uint16_t
     {
@@ -600,7 +605,11 @@ inline std::ostream& operator<<(std::ostream& os, const Move& move)
     return os;
 }
 
-using Score = int;
+using Score                = std::int16_t;
+constexpr Score MATE_SCORE = -30'000;
+constexpr Score DRAW_SCORE = 0;
+constexpr Score NEG_INF    = -31'000;
+constexpr Score POS_INF    = 31'000;
 
 } // namespace shellac
 
