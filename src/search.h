@@ -16,19 +16,37 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef SHELLAC_UCI_H
-#define SHELLAC_UCI_H
-#include "engine.h"
+//
+// Created by amber on 07/03/2026.
+//
+
+#ifndef SHELLAC_SEARCH_H
+#define SHELLAC_SEARCH_H
+#include <atomic>
+
+#include "position.h"
+#include "types.h"
+
 namespace shellac {
-class UciEngine
+
+class SearchLimits;
+
+class Searcher
 {
 public:
-    UciEngine() = default;
-    void loop();
+    Searcher() = default;
+
+    void begin_search(const GameHistory& history, const SearchLimits& limits);
+    void stop_searching();
 
 private:
-    Engine engine_;
+    GameHistory gameHistory_{
+        std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};
+    Move bestMove_{};
+
+    std::atomic_bool stopSearch_{false};
 };
+
 } // namespace shellac
 
-#endif // SHELLAC_UCI_H
+#endif // SHELLAC_SEARCH_H
