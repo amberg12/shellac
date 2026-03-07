@@ -22,6 +22,10 @@
 
 #include "uci.h"
 
+#include <vector>
+
+#include "types.h"
+
 namespace shellac {
 void UciEngine::loop()
 {
@@ -31,6 +35,56 @@ void UciEngine::loop()
         std::istringstream iss{line};
 
         iss >> token;
+
+        if (token == "position") {
+            std::string              fen;
+            std::vector<std::string> moves;
+            iss >> token;
+
+            if (token == "startpos") {
+                fen = STARTING_POSITION;
+            }
+            else {
+                while (iss >> token && token != "moves") {
+                    fen += token + " ";
+                }
+            }
+
+            iss >> token;
+
+            while (iss >> token) {
+                moves.push_back(token);
+            }
+
+            engine_.set_position(fen, moves);
+        }
+        else if (token == "isready") {
+            std::cout << "readyok" << std::endl;
+        }
+        else if (token == "uci") {
+            std::cout << "id name Shellac " << BuildIdentifier << std::endl;
+            std::cout << "uciok" << std::endl;
+        }
+        else if (token == "go") {
+            engine_.go(SearchLimits{});
+        }
+        else if (token == "d") {
+            std::cout << engine_.display();
+        }
+        else if (token == "perft") {
+            int depth;
+            iss >> depth;
+            engine_.perft(depth);
+        }
+        else if (token == "perft_suite") {
+            int         depth = 0;
+            std::string path;
+            iss >> depth;
+            iss >> path;
+            engine_.perft_suite(depth, path);
+        }
+
+        std::cout << std::flush;
     }
 }
 } // namespace shellac
