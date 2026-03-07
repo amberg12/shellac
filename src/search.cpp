@@ -17,6 +17,7 @@
  */
 
 #include <algorithm>
+#include <cstdlib>
 
 #include "engine.h"
 #include "movegen.h"
@@ -25,6 +26,19 @@
 namespace shellac {
 namespace {
 constexpr int MAX_DEPTH = 200;
+constexpr int MATE_BASE = -MATE_SCORE;
+
+bool is_mate_score(const Score score)
+{
+    return std::abs(static_cast<int>(score)) >= MATE_BASE - MAX_DEPTH;
+}
+
+int to_mate_moves(const Score score)
+{
+    const int plies = MATE_BASE - std::abs(static_cast<int>(score));
+    const int moves = (plies + 1) / 2;
+    return score >= 0 ? moves : -moves;
+}
 }
 
 TimeManager::TimeManager(const SearchLimits& searchLimits, const Color sideToMove)
@@ -197,8 +211,14 @@ void Searcher::search_root(int depth)
     }
 
     bestMove_ = bestMove;
-    std::cout << "info depth " << depth << " score cp " << bestScore << " nodes "
-              << timeManager_->nodes_searched() << " pv " << bestMove_ << '\n'
+    std::cout << "info depth " << depth << " score ";
+    if (is_mate_score(bestScore)) {
+        std::cout << "mate " << to_mate_moves(bestScore);
+    }
+    else {
+        std::cout << "cp " << bestScore;
+    }
+    std::cout << " nodes " << timeManager_->nodes_searched() << " pv " << bestMove_ << '\n'
               << std::flush;
 }
 
