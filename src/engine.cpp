@@ -88,18 +88,10 @@ void Engine::perft(const int depth) const
 
 void Engine::perft_suite(const int maxDepth, const std::string& path)
 {
-    std::ifstream file(path);
-    if (!file) {
-        std::cerr << "Failed to open: " << path << '\n';
-        return;
-    }
-
-    std::string line;
-    int         test = 1;
-
-    while (std::getline(file, line)) {
+    const auto run_line = [](const int maxDepth, const std::string line)
+    {
         if (line.empty())
-            continue;
+            return;
 
         std::stringstream ss(line);
 
@@ -130,8 +122,25 @@ void Engine::perft_suite(const int maxDepth, const std::string& path)
                           << '\n';
             }
         }
+    };
+
+    std::ifstream file(path);
+    if (!file) {
+        std::cerr << "Failed to open: " << path << '\n';
+        return;
     }
 
-    std::cout << "ran ok\n";
+    std::string line;
+    std::vector<std::future<void>> futures;
+
+    while (std::getline(file, line)) {
+        futures.push_back(threadPool_.enqueue(run_line, maxDepth, line));
+    }
+
+    for (auto& future : futures) {
+        future.get();
+    }
+
+    std::cout << "ran all\n";
 }
 } // namespace shellac
