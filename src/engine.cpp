@@ -18,6 +18,7 @@
 
 #include "engine.h"
 
+#include <fstream>
 #include <sstream>
 
 #include "movegen.h"
@@ -83,5 +84,54 @@ void Engine::perft(const int depth) const
 {
     const uint64_t nodes = run_perft<true>(gameHistory_.current_position(), depth);
     std::cout << "Node count: " << nodes << '\n';
+}
+
+void Engine::perft_suite(const int maxDepth, const std::string& path)
+{
+    std::ifstream file(path);
+    if (!file) {
+        std::cerr << "Failed to open: " << path << '\n';
+        return;
+    }
+
+    std::string line;
+    int         test = 1;
+
+    while (std::getline(file, line)) {
+        if (line.empty())
+            continue;
+
+        std::stringstream ss(line);
+
+        std::string fen;
+        std::getline(ss, fen, ';');
+
+        Position position = Position::from_fen(fen);
+
+        std::string token;
+
+        while (std::getline(ss, token, ';')) {
+            std::stringstream tok(token);
+
+            char          d;
+            int           depth;
+            std::uint64_t expected;
+
+            tok >> d >> depth >> expected;
+
+            if (depth > maxDepth)
+                continue;
+
+            const uint64_t result = run_perft<false>(position, depth);
+
+            if (result != expected) {
+                std::cout << position.to_fen() << '\n'
+                          << "Depth " << depth << " FAIL expected " << expected << " got " << result
+                          << '\n';
+            }
+        }
+    }
+
+    std::cout << "ran ok\n";
 }
 } // namespace shellac

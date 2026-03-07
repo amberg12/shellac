@@ -57,12 +57,21 @@ void UciEngine::loop()
             }
 
             engine_.set_position(fen, moves);
-        } else if (token == "d") {
+        }
+        else if (token == "d") {
             std::cout << engine_.display();
-        } else if (token == "perft") {
+        }
+        else if (token == "perft") {
             int depth;
             iss >> depth;
             engine_.perft(depth);
+        }
+        else if (token == "perft_suite") {
+            int         depth = 0;
+            std::string path;
+            iss >> depth;
+            iss >> path;
+            engine_.perft_suite(depth, path);
         }
     }
 }

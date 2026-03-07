@@ -35,7 +35,9 @@ public:
 
     // Our extensions.
     [[nodiscard]] std::string display() const;
-    void perft(int depth) const;
+    void                      perft(int depth) const;
+    static void                      perft_suite(int maxDepth, const std::string& path) ;
+
 private:
     GameHistory gameHistory_{std::string(STARTING_POSITION), {}};
 };
