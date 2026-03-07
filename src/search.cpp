@@ -196,10 +196,10 @@ void Searcher::search_root(int depth)
         }
     }
 
-    std::cout << "info " << "depth " << depth << " score " << bestScore << " pv " << bestMove
-              << std::endl;
-
     bestMove_ = bestMove;
+    std::cout << "info depth " << depth << " score cp " << bestScore << " nodes "
+              << timeManager_->nodes_searched() << " pv " << bestMove_ << '\n'
+              << std::flush;
 }
 
 Score Searcher::search(int depth, Score alpha, const Score beta)
@@ -212,7 +212,6 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
 
     if (limits != TimeManager::CONTINUE) {
         stop_searching();
-        return 0;
     }
 
     if (depth == 0) {
@@ -253,7 +252,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (searchedMoves == 0) {
-        return currentPosition.is_check() ? MATE_SCORE : DRAW_SCORE;
+        return currentPosition.is_check() ? MATE_SCORE + depth : DRAW_SCORE;
     }
 
     return bestScore;
