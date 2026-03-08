@@ -171,4 +171,21 @@ MoveList MoveList::from_position(const Position& position)
 template MoveList MoveList::from_position<MoveType::NORMAL>(const Position& position);
 template MoveList MoveList::from_position<MoveType::CAPTURES>(const Position& position);
 
+void MoveList::pick_move_at(Move* ptr)
+{
+    assert(ptr < end_);
+    auto to = (ScoredMove*)ptr;
+
+    ScoredMove* best = to;
+
+    for (ScoredMove* scan = to + 1; scan != end_; ++scan) {
+        if (scan->score() > best->score()) {
+            best = scan;
+        }
+    }
+
+    if (best != to) {
+        std::swap(*to, *best);
+    }
+}
 } // namespace shellac

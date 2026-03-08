@@ -24,44 +24,44 @@ namespace shellac {
 namespace {
 Score evaluate_pawns(const Position& position)
 {
-    const Score whitePawns = position.pieces(Color::WHITE, PieceType::PAWN).pop_count() * Material::PAWN;
-    const Score blackPawns = position.pieces(Color::BLACK, PieceType::PAWN).pop_count() * Material::PAWN;
+    const Score whitePawns = position.pieces(Color::WHITE, PieceType::PAWN).pop_count() * Material::PAWN_SCORE;
+    const Score blackPawns = position.pieces(Color::BLACK, PieceType::PAWN).pop_count() * Material::PAWN_SCORE;
     return whitePawns - blackPawns;
 }
 
 Score evaluate_knights(const Position& position)
 {
     const Score whiteKnights =
-        position.pieces(Color::WHITE, PieceType::KNIGHT).pop_count() * Material::KNIGHT;
+        position.pieces(Color::WHITE, PieceType::KNIGHT).pop_count() * Material::KNIGHT_SCORE;
     const Score blackKnights =
-        position.pieces(Color::BLACK, PieceType::KNIGHT).pop_count() * Material::KNIGHT;
+        position.pieces(Color::BLACK, PieceType::KNIGHT).pop_count() * Material::KNIGHT_SCORE;
     return whiteKnights - blackKnights;
 }
 
 Score evaluate_bishops(const Position& position)
 {
     const Score whiteBishops =
-        position.pieces(Color::WHITE, PieceType::BISHOP).pop_count() * Material::BISHOP;
+        position.pieces(Color::WHITE, PieceType::BISHOP).pop_count() * Material::BISHOP_SCORE;
     const Score blackBishops =
-        position.pieces(Color::BLACK, PieceType::BISHOP).pop_count() * Material::BISHOP;
+        position.pieces(Color::BLACK, PieceType::BISHOP).pop_count() * Material::BISHOP_SCORE;
     return whiteBishops - blackBishops;
 }
 
 Score evaluate_rooks(const Position& position)
 {
     const Score whiteRooks =
-        position.pieces(Color::WHITE, PieceType::ROOK).pop_count() * Material::ROOK;
+        position.pieces(Color::WHITE, PieceType::ROOK).pop_count() * Material::ROOK_SCORE;
     const Score blackRooks =
-        position.pieces(Color::BLACK, PieceType::ROOK).pop_count() * Material::ROOK;
+        position.pieces(Color::BLACK, PieceType::ROOK).pop_count() * Material::ROOK_SCORE;
     return whiteRooks - blackRooks;
 }
 
 Score evaluate_queens(const Position& position)
 {
     const Score whiteQueens =
-        position.pieces(Color::WHITE, PieceType::QUEEN).pop_count() * Material::QUEEN;
+        position.pieces(Color::WHITE, PieceType::QUEEN).pop_count() * Material::QUEEN_SCORE;
     const Score blackQueens =
-        position.pieces(Color::BLACK, PieceType::QUEEN).pop_count() * Material::QUEEN;
+        position.pieces(Color::BLACK, PieceType::QUEEN).pop_count() * Material::QUEEN_SCORE;
     return whiteQueens - blackQueens;
 }
 }

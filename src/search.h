@@ -26,6 +26,7 @@
 #include <chrono>
 
 #include "engine.h"
+#include "movegen.h"
 #include "position.h"
 #include "types.h"
 
@@ -71,6 +72,8 @@ private:
     void  search_root(int depth);
     Score search(int depth, Score alpha, Score beta);
     Score quiesce(Score alpha, Score beta);
+
+    void rescore_moves(MoveList& moveList) const;
 
     TimeManager* timeManager_ = nullptr;
     GameHistory  hist_{std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};

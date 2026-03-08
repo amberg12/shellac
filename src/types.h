@@ -613,12 +613,30 @@ constexpr Score POS_INF    = 31'000;
 
 enum Material : Score
 {
-    PAWN   = 100,
-    KNIGHT = 320,
-    BISHOP = 330,
-    ROOK   = 500,
-    QUEEN  = 900,
+    PAWN_SCORE   = 100,
+    KNIGHT_SCORE = 320,
+    BISHOP_SCORE = 330,
+    ROOK_SCORE   = 500,
+    QUEEN_SCORE  = 900,
 };
+
+constexpr Score evaluate_piece(const PieceType piece)
+{
+    switch (piece) {
+    case PieceType::PAWN:
+        return PAWN_SCORE;
+    case PieceType::KNIGHT:
+        return KNIGHT_SCORE;
+    case PieceType::BISHOP:
+        return BISHOP_SCORE;
+    case PieceType::ROOK:
+        return ROOK_SCORE;
+    case PieceType::QUEEN:
+        return QUEEN_SCORE;
+    default:
+        return 0;
+    }
+}
 
 } // namespace shellac
 

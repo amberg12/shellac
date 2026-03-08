@@ -73,6 +73,11 @@ public:
         score_ = score;
     }
 
+    Score score() const
+    {
+        return score_;
+    }
+
 private:
     Score score_{};
 };
@@ -87,6 +92,8 @@ public:
         std::memcpy(buffer_, other.buffer_, sizeof(buffer_));
         end_ = buffer_ + (other.end_ - other.buffer_);
     }
+
+    void pick_move_at(Move* ptr);
 
     [[nodiscard]] ScoredMove* begin()
     {
