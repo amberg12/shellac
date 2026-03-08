@@ -170,16 +170,20 @@ void Searcher::stop_searching()
 
 void Searcher::search_root(int depth)
 {
-    Score           alpha           = NEG_INF;
-    Score           beta            = POS_INF;
+    Score alpha = NEG_INF;
+    Score beta  = POS_INF;
 
     const auto moveList  = MoveList::from_position(hist_.pos());
     Score      bestScore = NEG_INF;
     Move       bestMove{};
 
-    for (const auto& move : moveList) {
+    for (const Move move : moveList) {
         if (!hist_.pos().is_legal(static_cast<Move>(move))) {
             continue;
+        }
+
+        if (bestMove_.is_null()) {
+            bestMove_ = move;
         }
 
         if (!allowedRootMoves_.empty()) {
@@ -194,6 +198,10 @@ void Searcher::search_root(int depth)
         Score score = -search(depth - 1, -beta, -alpha);
         hist_.pop_move();
 
+        if (stopSearch_.load() == true) {
+            return;
+        }
+
         if (score > bestScore) {
             bestScore = score;
             bestMove  = static_cast<Move>(move);
@@ -204,10 +212,6 @@ void Searcher::search_root(int depth)
         }
 
         if (alpha >= beta) {
-            break;
-        }
-
-        if (stopSearch_.load() == true) {
             break;
         }
     }
@@ -241,9 +245,9 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         return quiesce(alpha, beta);
     }
 
-    const auto      moveList        = MoveList::from_position(hist_.pos());
-    int             searchedMoves   = 0;
-    Score           bestScore       = NEG_INF;
+    const auto moveList      = MoveList::from_position(hist_.pos());
+    int        searchedMoves = 0;
+    Score      bestScore     = NEG_INF;
 
     if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
         return DRAW_SCORE;
