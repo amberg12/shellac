@@ -186,6 +186,7 @@ Position::Position(const Position& parent, const Move move, const GameHistory& h
             const Position& pos = *it;
             if (is_repetition_of(pos)) {
                 repetitions_ = pos.repetitions_ + 1;
+                break;
             }
 
             if (pos.fiftyMoveRule_ == 0) {
