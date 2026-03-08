@@ -687,9 +687,14 @@ void GameHistory::pop_move()
     gameHistory_.pop_back();
 }
 
-const Position& GameHistory::current_position() const
+const Position& GameHistory::pos() const
 {
     return gameHistory_.back();
+}
+
+void GameHistory::begin_search()
+{
+    gameHistory_.reserve(gameHistory_.size() + 512);
 }
 
 } // namespace shellac

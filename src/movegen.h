@@ -31,6 +31,7 @@ class Position;
 enum class MoveType
 {
     NORMAL,
+    CAPTURES,
 };
 
 class ScoredMove : public Move

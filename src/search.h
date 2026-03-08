@@ -49,6 +49,7 @@ public:
 
     [[nodiscard]] int nodes_searched() const;
     [[nodiscard]] int max_depth() const;
+
 private:
     std::chrono::steady_clock::time_point startTime_{};
     std::chrono::steady_clock::time_point endTime_{};
@@ -69,11 +70,11 @@ public:
 private:
     void  search_root(int depth);
     Score search(int depth, Score alpha, Score beta);
+    Score quiesce(Score alpha, Score beta);
 
     TimeManager* timeManager_ = nullptr;
-    GameHistory  gameHistory_{
-        std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};
-    Move bestMove_{};
+    GameHistory  hist_{std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};
+    Move         bestMove_{};
     std::vector<Move> allowedRootMoves_{};
 
     std::atomic_bool stopSearch_{false};

@@ -41,7 +41,7 @@ int to_mate_moves(const Score score)
     const int moves = (plies + 1) / 2;
     return score >= 0 ? moves : -moves;
 }
-}
+} // namespace
 
 TimeManager::TimeManager(const SearchLimits& searchLimits, const Color sideToMove)
 {
@@ -138,12 +138,13 @@ int TimeManager::max_depth() const
 
 void Searcher::begin_search(const GameHistory& history, const SearchLimits& limits)
 {
-    gameHistory_ = history;
-    bestMove_    = Move{};
+    hist_ = history;
+    hist_.begin_search();
+    bestMove_ = Move{};
     stopSearch_.store(false);
 
     delete timeManager_;
-    timeManager_ = new TimeManager(limits, history.current_position().side_to_move());
+    timeManager_ = new TimeManager(limits, history.pos().side_to_move());
 
     if (limits.searchMoves.has_value()) {
         allowedRootMoves_ = *limits.searchMoves;
@@ -169,16 +170,15 @@ void Searcher::stop_searching()
 
 void Searcher::search_root(int depth)
 {
-    const Position& currentPosition = gameHistory_.current_position();
     Score           alpha           = NEG_INF;
     Score           beta            = POS_INF;
 
-    const auto moveList  = MoveList::from_position(currentPosition);
+    const auto moveList  = MoveList::from_position(hist_.pos());
     Score      bestScore = NEG_INF;
     Move       bestMove{};
 
     for (const auto& move : moveList) {
-        if (!currentPosition.is_legal(static_cast<Move>(move))) {
+        if (!hist_.pos().is_legal(static_cast<Move>(move))) {
             continue;
         }
 
@@ -190,9 +190,9 @@ void Searcher::search_root(int depth)
             }
         }
 
-        gameHistory_.add_move(static_cast<Move>(move));
+        hist_.add_move(static_cast<Move>(move));
         Score score = -search(depth - 1, -beta, -alpha);
-        gameHistory_.pop_move();
+        hist_.pop_move();
 
         if (stopSearch_.load() == true) {
             return;
@@ -237,28 +237,27 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (depth == 0) {
-        return evaluate(gameHistory_.current_position());
+        return quiesce(alpha, beta);
     }
 
-    const Position& currentPosition = gameHistory_.current_position();
-    const auto      moveList        = MoveList::from_position(currentPosition);
+    const auto      moveList        = MoveList::from_position(hist_.pos());
     int             searchedMoves   = 0;
     Score           bestScore       = NEG_INF;
 
-    if (currentPosition.is_fifty_move() || currentPosition.is_threefold()) {
+    if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
         return DRAW_SCORE;
     }
 
     for (const Move move : moveList) {
-        if (!currentPosition.is_legal(move)) {
+        if (!hist_.pos().is_legal(move)) {
             continue;
         }
 
         searchedMoves++;
 
-        gameHistory_.add_move(move);
+        hist_.add_move(move);
         Score score = -search(depth - 1, -beta, -alpha);
-        gameHistory_.pop_move();
+        hist_.pop_move();
 
         if (score > bestScore) {
             bestScore = score;
@@ -274,7 +273,69 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (searchedMoves == 0) {
-        return currentPosition.is_check() ? MATE_SCORE + depth : DRAW_SCORE;
+        return hist_.pos().is_check() ? MATE_SCORE + depth : DRAW_SCORE;
+    }
+
+    return bestScore;
+}
+
+Score Searcher::quiesce(Score alpha, Score beta)
+{
+    if (stopSearch_.load() == true) {
+        return 0;
+    }
+
+    TimeManager::Limit limits = timeManager_->check_node();
+
+    if (limits != TimeManager::CONTINUE) {
+        stop_searching();
+    }
+
+    Score bestScore = hist_.pos().is_check() ? NEG_INF : evaluate(hist_.pos());
+
+    if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
+        return DRAW_SCORE;
+    }
+
+    if (bestScore >= beta) {
+        return bestScore;
+    }
+
+    if (bestScore > alpha) {
+        alpha = bestScore;
+    }
+
+    int  searchedMoves = 0;
+    auto moveList      = hist_.pos().is_check()
+             ? MoveList::from_position(hist_.pos())
+             : MoveList::from_position<MoveType::CAPTURES>(hist_.pos());
+
+    for (const Move move : moveList) {
+        if (!hist_.pos().is_legal(move)) {
+            continue;
+        }
+
+        searchedMoves++;
+
+        hist_.add_move(move);
+        Score score = -quiesce(-beta, -alpha);
+        hist_.pop_move();
+
+        if (score > bestScore) {
+            bestScore = score;
+        }
+
+        if (score > alpha) {
+            alpha = score;
+        }
+
+        if (score >= beta) {
+            break;
+        }
+    }
+
+    if (searchedMoves == 0) {
+        return hist_.pos().is_check() ? MATE_SCORE : bestScore;
     }
 
     return bestScore;

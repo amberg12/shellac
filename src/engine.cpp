@@ -87,7 +87,7 @@ std::string Engine::display() const
     for (Rank rank = Rank::R_8; is_valid(rank); --rank) {
         for (File file = File::F_A; is_valid(file); ++file) {
             const Square at    = make_square(file, rank);
-            const Piece  piece = gameHistory_.current_position().piece_at(at);
+            const Piece  piece = gameHistory_.pos().piece_at(at);
             out << "|" << to_char(piece);
         }
         out << "|" << to_char(rank) << '\n';
@@ -95,14 +95,14 @@ std::string Engine::display() const
     }
     out << " a b c d e f g h " << '\n';
 
-    out << "Fen: " + gameHistory_.current_position().to_fen() << '\n';
+    out << "Fen: " + gameHistory_.pos().to_fen() << '\n';
 
     return out.str();
 }
 
 void Engine::perft(const int depth) const
 {
-    const uint64_t nodes = run_perft<true>(gameHistory_.current_position(), depth);
+    const uint64_t nodes = run_perft<true>(gameHistory_.pos(), depth);
     std::cout << "Node count: " << nodes << '\n';
 }
 
