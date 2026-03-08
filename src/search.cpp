@@ -23,6 +23,8 @@
 #include "movegen.h"
 #include "search.h"
 
+#include "evaluate.h"
+
 namespace shellac {
 namespace {
 constexpr int MAX_DEPTH = 200;
@@ -235,7 +237,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (depth == 0) {
-        return rand() % 200 - 100;
+        return evaluate(gameHistory_.current_position());
     }
 
     const Position& currentPosition = gameHistory_.current_position();

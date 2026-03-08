@@ -611,6 +611,15 @@ constexpr Score DRAW_SCORE = 0;
 constexpr Score NEG_INF    = -31'000;
 constexpr Score POS_INF    = 31'000;
 
+enum Material : Score
+{
+    PAWN   = 100,
+    KNIGHT = 320,
+    BISHOP = 330,
+    ROOK   = 500,
+    QUEEN  = 900,
+};
+
 } // namespace shellac
 
 #endif // SHELLAC_TYPES_H

@@ -42,6 +42,7 @@ add_executable(shellac
         src/threadpool.h
         src/search.cpp
         src/search.h
+        src/evaluate.cpp
 )
 
 set_target_properties(shellac PROPERTIES OUTPUT_NAME ${OUTPUT_NAME})
