@@ -234,6 +234,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
 
     if (limits != TimeManager::CONTINUE) {
         stop_searching();
+        return 0;
     }
 
     if (depth == 0) {
@@ -289,6 +290,7 @@ Score Searcher::quiesce(Score alpha, Score beta)
 
     if (limits != TimeManager::CONTINUE) {
         stop_searching();
+        return 0;
     }
 
     Score bestScore = hist_.pos().is_check() ? NEG_INF : evaluate(hist_.pos());

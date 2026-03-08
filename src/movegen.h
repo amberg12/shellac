@@ -23,6 +23,8 @@
 #ifndef SHELLAC_MOVEGEN_H
 #define SHELLAC_MOVEGEN_H
 
+#include <cstring>
+
 #include "types.h"
 
 namespace shellac {
@@ -80,6 +82,11 @@ class MoveList
 public:
     template <MoveType Mt = MoveType::NORMAL>
     static MoveList from_position(const Position& position);
+
+    MoveList(MoveList&& other) noexcept : end_(other.end_) {
+        std::memcpy(buffer_, other.buffer_, sizeof(buffer_));
+        end_ = buffer_ + (other.end_ - other.buffer_);
+    }
 
     [[nodiscard]] ScoredMove* begin()
     {
