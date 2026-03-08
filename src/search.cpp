@@ -173,28 +173,30 @@ void Searcher::search_root(int depth)
     Score alpha = NEG_INF;
     Score beta  = POS_INF;
 
-    const auto moveList  = MoveList::from_position(hist_.pos());
-    Score      bestScore = NEG_INF;
-    Move       bestMove{};
+    auto  moveList  = MoveList::from_position(hist_.pos());
+    Score bestScore = NEG_INF;
+    Move  bestMove{};
 
-    for (const Move move : moveList) {
-        if (!hist_.pos().is_legal(static_cast<Move>(move))) {
+    rescore_moves(moveList);
+
+    for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
+        if (!hist_.pos().is_legal(*move)) {
             continue;
         }
 
         if (bestMove_.is_null()) {
-            bestMove_ = move;
+            bestMove_ = *move;
         }
 
         if (!allowedRootMoves_.empty()) {
             auto it = std::find(allowedRootMoves_.begin(), allowedRootMoves_.end(),
-                                static_cast<Move>(move));
+                                static_cast<Move>(*move));
             if (it == allowedRootMoves_.end()) {
                 continue;
             }
         }
 
-        hist_.add_move(static_cast<Move>(move));
+        hist_.add_move(static_cast<Move>(*move));
         Score score = -search(depth - 1, -beta, -alpha);
         hist_.pop_move();
 
@@ -204,7 +206,7 @@ void Searcher::search_root(int depth)
 
         if (score > bestScore) {
             bestScore = score;
-            bestMove  = static_cast<Move>(move);
+            bestMove  = static_cast<Move>(*move);
         }
 
         if (score > alpha) {
@@ -245,22 +247,26 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         return quiesce(alpha, beta);
     }
 
-    const auto moveList      = MoveList::from_position(hist_.pos());
-    int        searchedMoves = 0;
-    Score      bestScore     = NEG_INF;
+    auto  moveList      = MoveList::from_position(hist_.pos());
+    int   searchedMoves = 0;
+    Score bestScore     = NEG_INF;
 
     if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
         return DRAW_SCORE;
     }
 
-    for (const Move move : moveList) {
-        if (!hist_.pos().is_legal(move)) {
+    rescore_moves(moveList);
+
+    for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
+        if (!hist_.pos().is_legal(*move)) {
             continue;
         }
 
+        moveList.pick_move_at(move);
+
         searchedMoves++;
 
-        hist_.add_move(move);
+        hist_.add_move(*move);
         Score score = -search(depth - 1, -beta, -alpha);
         hist_.pop_move();
 
@@ -316,14 +322,18 @@ Score Searcher::quiesce(Score alpha, Score beta)
              ? MoveList::from_position(hist_.pos())
              : MoveList::from_position<MoveType::CAPTURES>(hist_.pos());
 
-    for (const Move move : moveList) {
-        if (!hist_.pos().is_legal(move)) {
+    rescore_moves(moveList);
+
+    for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
+        if (!hist_.pos().is_legal(*move)) {
             continue;
         }
 
+        moveList.pick_move_at(move);
+
         searchedMoves++;
 
-        hist_.add_move(move);
+        hist_.add_move(*move);
         Score score = -quiesce(-beta, -alpha);
         hist_.pop_move();
 
@@ -345,6 +355,29 @@ Score Searcher::quiesce(Score alpha, Score beta)
     }
 
     return bestScore;
+}
+
+void Searcher::rescore_moves(MoveList& moveList) const
+{
+    enum BaseScores : Score
+    {
+        CAPTURE_BASE = 2000,
+    };
+
+    for (ScoredMove& move : moveList) {
+        if (move.is_castle()) {
+            continue;
+        }
+
+        const PieceType victim = type_of(hist_.pos().piece_at(move.dst()));
+
+        if (victim == PieceType::NONE) {
+            continue;
+        }
+
+        const PieceType attacker = type_of(hist_.pos().piece_at(move.src()));
+        move.set_score(evaluate_piece(victim) - evaluate_piece(attacker) + CAPTURE_BASE);
+    }
 }
 
 } // namespace shellac
