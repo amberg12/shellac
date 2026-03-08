@@ -147,7 +147,9 @@ public:
     void add_move(Move move);
     void pop_move();
 
-    [[nodiscard]] const Position& current_position() const;
+    [[nodiscard]] const Position& pos() const;
+
+    void begin_search();
 
     [[nodiscard]] auto begin()
     {

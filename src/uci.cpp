@@ -121,7 +121,7 @@ void UciEngine::loop()
 
                     while (i + 1 < args.size() && !is_go_keyword(args[i + 1])) {
                         const std::string& moveString = args[++i];
-                        allowedMoves.push_back(history.current_position().parse_move(moveString));
+                        allowedMoves.push_back(history.pos().parse_move(moveString));
                     }
 
                     if (!allowedMoves.empty()) {

@@ -23,6 +23,7 @@
 namespace shellac {
 namespace {
 
+template <MoveType MOVE_TYPE>
 ScoredMove* generate_pawn_moves(ScoredMove* begin, const Position& position)
 {
     const Bitboard enPassantMask = [&]()
@@ -38,7 +39,14 @@ ScoredMove* generate_pawn_moves(ScoredMove* begin, const Position& position)
         const Bitboard blockers = position.pieces() | enPassantMask;
         const Bitboard destinations =
             generate_pawn_destinations(position.side_to_move(), src, blockers);
-        const Bitboard validDestinations = destinations & ~position.pieces(position.side_to_move());
+        const Bitboard validDestinations = [&]
+        {
+            if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
+                return destinations & position.pieces(~position.side_to_move());
+            }
+
+            return destinations & ~position.pieces(position.side_to_move());
+        }();
 
         for (const Square dst : validDestinations) {
             if (!(Bitboard{dst} & enPassantMask).is_empty()) {
@@ -64,7 +72,14 @@ ScoredMove* generate_moves_for(ScoredMove* begin, const Position& position)
 {
     for (const Square src : position.pieces(position.side_to_move(), PIECE_TYPE)) {
         const Bitboard attacks      = generate_attacks<PIECE_TYPE>(src, position.pieces());
-        const Bitboard destinations = attacks & ~position.pieces(position.side_to_move());
+        const Bitboard destinations = [&]
+        {
+            if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
+                return attacks & position.pieces(~position.side_to_move());
+            }
+
+            return attacks & ~position.pieces(position.side_to_move());
+        }();
 
         for (const Square dst : destinations) {
             *begin++ = ScoredMove(src, dst);
@@ -74,47 +89,57 @@ ScoredMove* generate_moves_for(ScoredMove* begin, const Position& position)
     return begin;
 }
 
+template <MoveType MOVE_TYPE>
 ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
 {
-    for (const Square src : position.pieces(position.side_to_move(), PieceType::KING)) {
-        const Bitboard attacks      = generate_attacks<PieceType::KING>(src, position.pieces());
-        const Bitboard destinations = attacks & ~position.pieces(position.side_to_move());
+    const Square   src          = position.king_square(position.side_to_move());
+    const Bitboard attacks      = generate_attacks<PieceType::KING>(src, position.pieces());
+    const Bitboard destinations = [&]
+    {
+        if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
+            return attacks & position.pieces(~position.side_to_move());
+        }
+        return attacks & ~position.pieces(position.side_to_move());
+    }();
 
-        for (const Square dst : destinations) {
-            *begin++ = ScoredMove(src, dst);
+    for (const Square dst : destinations) {
+        *begin++ = ScoredMove(src, dst);
+    }
+
+    if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
+        return begin;
+    }
+
+    if (position.side_to_move() == Color::WHITE && src == Square::E1) {
+        if (position.can_castle_kingside(Color::WHITE) &&
+            position.piece_at(Square::H1) == Piece::W_ROOK &&
+            position.piece_at(Square::F1) == Piece::NONE &&
+            position.piece_at(Square::G1) == Piece::NONE) {
+            *begin++ = ScoredMove::create_castle(src, Square::G1);
         }
 
-        if (position.side_to_move() == Color::WHITE && src == Square::E1) {
-            if (position.can_castle_kingside(Color::WHITE) &&
-                position.piece_at(Square::H1) == Piece::W_ROOK &&
-                position.piece_at(Square::F1) == Piece::NONE &&
-                position.piece_at(Square::G1) == Piece::NONE) {
-                *begin++ = ScoredMove::create_castle(src, Square::G1);
-            }
-
-            if (position.can_castle_queenside(Color::WHITE) &&
-                position.piece_at(Square::A1) == Piece::W_ROOK &&
-                position.piece_at(Square::D1) == Piece::NONE &&
-                position.piece_at(Square::C1) == Piece::NONE &&
-                position.piece_at(Square::B1) == Piece::NONE) {
-                *begin++ = ScoredMove::create_castle(src, Square::C1);
-            }
+        if (position.can_castle_queenside(Color::WHITE) &&
+            position.piece_at(Square::A1) == Piece::W_ROOK &&
+            position.piece_at(Square::D1) == Piece::NONE &&
+            position.piece_at(Square::C1) == Piece::NONE &&
+            position.piece_at(Square::B1) == Piece::NONE) {
+            *begin++ = ScoredMove::create_castle(src, Square::C1);
         }
-        else if (position.side_to_move() == Color::BLACK && src == Square::E8) {
-            if (position.can_castle_kingside(Color::BLACK) &&
-                position.piece_at(Square::H8) == Piece::B_ROOK &&
-                position.piece_at(Square::F8) == Piece::NONE &&
-                position.piece_at(Square::G8) == Piece::NONE) {
-                *begin++ = ScoredMove::create_castle(src, Square::G8);
-            }
+    }
+    else if (position.side_to_move() == Color::BLACK && src == Square::E8) {
+        if (position.can_castle_kingside(Color::BLACK) &&
+            position.piece_at(Square::H8) == Piece::B_ROOK &&
+            position.piece_at(Square::F8) == Piece::NONE &&
+            position.piece_at(Square::G8) == Piece::NONE) {
+            *begin++ = ScoredMove::create_castle(src, Square::G8);
+        }
 
-            if (position.can_castle_queenside(Color::BLACK) &&
-                position.piece_at(Square::A8) == Piece::B_ROOK &&
-                position.piece_at(Square::D8) == Piece::NONE &&
-                position.piece_at(Square::C8) == Piece::NONE &&
-                position.piece_at(Square::B8) == Piece::NONE) {
-                *begin++ = ScoredMove::create_castle(src, Square::C8);
-            }
+        if (position.can_castle_queenside(Color::BLACK) &&
+            position.piece_at(Square::A8) == Piece::B_ROOK &&
+            position.piece_at(Square::D8) == Piece::NONE &&
+            position.piece_at(Square::C8) == Piece::NONE &&
+            position.piece_at(Square::B8) == Piece::NONE) {
+            *begin++ = ScoredMove::create_castle(src, Square::C8);
         }
     }
 
@@ -124,12 +149,12 @@ ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
 template <MoveType MOVE_TYPE>
 ScoredMove* generate_moves(ScoredMove* begin, const Position& position)
 {
-    begin = generate_pawn_moves(begin, position);
+    begin = generate_pawn_moves<MOVE_TYPE>(begin, position);
     begin = generate_moves_for<MOVE_TYPE, PieceType::KNIGHT>(begin, position);
     begin = generate_moves_for<MOVE_TYPE, PieceType::BISHOP>(begin, position);
     begin = generate_moves_for<MOVE_TYPE, PieceType::ROOK>(begin, position);
     begin = generate_moves_for<MOVE_TYPE, PieceType::QUEEN>(begin, position);
-    begin = generate_king_moves(begin, position);
+    begin = generate_king_moves<MOVE_TYPE>(begin, position);
     return begin;
 }
 
@@ -144,5 +169,6 @@ MoveList MoveList::from_position(const Position& position)
 }
 
 template MoveList MoveList::from_position<MoveType::NORMAL>(const Position& position);
+template MoveList MoveList::from_position<MoveType::CAPTURES>(const Position& position);
 
 } // namespace shellac
