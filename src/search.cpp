@@ -194,10 +194,6 @@ void Searcher::search_root(int depth)
         Score score = -search(depth - 1, -beta, -alpha);
         hist_.pop_move();
 
-        if (stopSearch_.load() == true) {
-            return;
-        }
-
         if (score > bestScore) {
             bestScore = score;
             bestMove  = static_cast<Move>(move);
@@ -208,6 +204,10 @@ void Searcher::search_root(int depth)
         }
 
         if (alpha >= beta) {
+            break;
+        }
+
+        if (stopSearch_.load() == true) {
             break;
         }
     }
