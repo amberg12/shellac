@@ -390,6 +390,11 @@ enum class Square : std::uint8_t
     INVALID = 64,
 };
 
+constexpr Square mirror(const Square square)
+{
+    return static_cast<Square>(underlying(square) ^ 56);
+}
+
 constexpr bool is_valid(const Square square)
 {
     return Square::A1 <= square && square <= Square::H8;
