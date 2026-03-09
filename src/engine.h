@@ -27,6 +27,7 @@
 #include "position.h"
 #include "search.h"
 #include "threadpool.h"
+#include "tt.h"
 
 namespace shellac {
 
@@ -57,6 +58,7 @@ public:
     void set_position(const std::string& fen, const std::vector<std::string>& moves);
     void go(const SearchLimits& searchLimits);
     void stop();
+    void new_game();
 
     // Our extensions.
     [[nodiscard]] std::string display() const;
@@ -68,6 +70,7 @@ private:
     std::shared_ptr<Searcher> searcher_ = std::make_shared<Searcher>();
     std::mutex                searcherMutex_;
     ThreadPool                threadPool_;
+    TranspositionTable        tt_{256};
 };
 
 } // namespace shellac

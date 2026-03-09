@@ -22,6 +22,7 @@
 #include "engine.h"
 #include "movegen.h"
 #include "search.h"
+#include "tt.h"
 
 #include "evaluate.h"
 
@@ -40,6 +41,34 @@ int to_mate_moves(const Score score)
     const int plies = MATE_BASE - std::abs(static_cast<int>(score));
     const int moves = (plies + 1) / 2;
     return score >= 0 ? moves : -moves;
+}
+
+Score score_to_tt(const Score score, const int ply)
+{
+    if (!is_mate_score(score)) {
+        return score;
+    }
+
+    if (score > 0) {
+        return score + ply;
+    }
+    else {
+        return score - ply;
+    }
+}
+
+Score tt_to_score(const Score score, const int ply)
+{
+    if (!is_mate_score(score)) {
+        return score;
+    }
+
+    if (score > 0) {
+        return score - ply;
+    }
+    else {
+        return score + ply;
+    }
 }
 } // namespace
 
@@ -136,12 +165,17 @@ int TimeManager::max_depth() const
     return maxDepth_ == -1 ? MAX_DEPTH : maxDepth_;
 }
 
-void Searcher::begin_search(const GameHistory& history, const SearchLimits& limits)
+void Searcher::begin_search(const GameHistory& history, const SearchLimits& limits,
+                            TranspositionTable* tt)
 {
     hist_ = history;
     hist_.begin_search();
     bestMove_ = Move{};
     stopSearch_.store(false);
+    rootPly_ = hist_.ply();
+
+    tt_ = tt;
+    tt_->begin_new_search();
 
     delete timeManager_;
     timeManager_ = new TimeManager(limits, history.pos().side_to_move());
@@ -153,8 +187,20 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
         allowedRootMoves_ = {};
     }
 
+    // Sometimes we try to make a null move, so we load a move in.
+    MoveList rootPseudoMoves = MoveList::from_position(hist_.pos());
+    for (const Move m : rootPseudoMoves) {
+        if (hist_.pos().is_legal(m)) {
+            bestMove_ = m;
+        }
+    }
+
     for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
-        search_root(depth);
+        if (stopSearch_.load() == true) {
+            break;
+        }
+
+        search<NodeType::ROOT>(depth, NEG_INF, POS_INF);
     }
 
     if (stopSearch_.load() == false) {
@@ -168,68 +214,7 @@ void Searcher::stop_searching()
     std::cout << "bestmove " << bestMove_ << '\n' << std::flush;
 }
 
-void Searcher::search_root(int depth)
-{
-    Score alpha = NEG_INF;
-    Score beta  = POS_INF;
-
-    auto  moveList  = MoveList::from_position(hist_.pos());
-    Score bestScore = NEG_INF;
-    Move  bestMove{};
-
-    rescore_moves(moveList);
-
-    for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
-        if (!hist_.pos().is_legal(*move)) {
-            continue;
-        }
-
-        if (bestMove_.is_null()) {
-            bestMove_ = *move;
-        }
-
-        if (!allowedRootMoves_.empty()) {
-            auto it = std::find(allowedRootMoves_.begin(), allowedRootMoves_.end(),
-                                static_cast<Move>(*move));
-            if (it == allowedRootMoves_.end()) {
-                continue;
-            }
-        }
-
-        hist_.add_move(static_cast<Move>(*move));
-        Score score = -search(depth - 1, -beta, -alpha);
-        hist_.pop_move();
-
-        if (stopSearch_.load() == true) {
-            return;
-        }
-
-        if (score > bestScore) {
-            bestScore = score;
-            bestMove  = static_cast<Move>(*move);
-        }
-
-        if (score > alpha) {
-            alpha = score;
-        }
-
-        if (alpha >= beta) {
-            break;
-        }
-    }
-
-    bestMove_ = bestMove;
-    std::cout << "info depth " << depth << " score ";
-    if (is_mate_score(bestScore)) {
-        std::cout << "mate " << to_mate_moves(bestScore);
-    }
-    else {
-        std::cout << "cp " << bestScore;
-    }
-    std::cout << " nodes " << timeManager_->nodes_searched() << " pv " << bestMove_ << '\n'
-              << std::flush;
-}
-
+template <NodeType NODE_TYPE>
 Score Searcher::search(int depth, Score alpha, const Score beta)
 {
     if (stopSearch_.load() == true) {
@@ -247,31 +232,62 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         return quiesce(alpha, beta);
     }
 
-    auto  moveList      = MoveList::from_position(hist_.pos());
-    int   searchedMoves = 0;
-    Score bestScore     = NEG_INF;
-
     if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
         return DRAW_SCORE;
     }
 
-    rescore_moves(moveList);
+    const Score originalAlpha = alpha;
+
+    auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_->read(hist_.pos());
+    if (!ttMove.is_null() && ttDepth >= depth) {
+        if constexpr (NODE_TYPE == NodeType::ROOT) {
+            if (bestMove_.is_null()) {
+                bestMove_ = ttMove;
+            }
+        }
+
+        ttScore = tt_to_score(ttScore, hist_.ply() - rootPly_);
+
+        if (ttTag == TtTag::EXACT) {
+            return ttScore;
+        }
+
+        if (ttTag == TtTag::LOWER && ttScore >= beta) {
+            return ttScore;
+        }
+
+        if (ttTag == TtTag::UPPER && ttScore <= alpha) {
+            return ttScore;
+        }
+    }
+
+    auto  moveList      = MoveList::from_position(hist_.pos());
+    int   searchedMoves = 0;
+    Score bestScore     = NEG_INF;
+    Move  bestMove      = Move{};
+
+    rescore_moves(moveList, ttMove);
 
     for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
-        if (!hist_.pos().is_legal(*move)) {
-            continue;
+        if (NODE_TYPE == NodeType::ROOT && stopSearch_.load()) {
+            break;
         }
 
         moveList.pick_move_at(move);
 
+        if (!hist_.pos().is_legal(*move)) {
+            continue;
+        }
+
         searchedMoves++;
 
         hist_.add_move(*move);
-        Score score = -search(depth - 1, -beta, -alpha);
+        Score score = -search<NodeType::STANDARD>(depth - 1, -beta, -alpha);
         hist_.pop_move();
 
         if (score > bestScore) {
             bestScore = score;
+            bestMove  = *move;
         }
 
         if (score > alpha) {
@@ -284,7 +300,39 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (searchedMoves == 0) {
-        return hist_.pos().is_check() ? MATE_SCORE + depth : DRAW_SCORE;
+        bestScore = hist_.pos().is_check() ? MATE_SCORE + depth : DRAW_SCORE;
+    }
+
+    TtTag writeTag = TtTag::EXACT;
+    if (bestScore <= originalAlpha) {
+        writeTag = TtTag::UPPER;
+    }
+    else if (bestScore >= beta) {
+        writeTag = TtTag::LOWER;
+    }
+
+    const Score writeScore = score_to_tt(bestScore, hist_.ply() - rootPly_);
+    if (!stopSearch_.load()) {
+        tt_->write(hist_.pos(), bestMove, writeScore, depth, writeTag);
+    }
+
+    if constexpr (NODE_TYPE == NodeType::ROOT) {
+        bestMove_ = bestMove;
+
+        if (stopSearch_.load() == true) {
+            return bestScore;
+        }
+
+        std::cout << "info depth " << depth << " score ";
+        if (is_mate_score(bestScore)) {
+            std::cout << "mate " << to_mate_moves(bestScore);
+        }
+        else {
+            std::cout << "cp " << bestScore;
+        }
+
+        std::cout << " nodes " << timeManager_->nodes_searched() << " pv " << bestMove_ << '\n'
+                  << std::flush;
     }
 
     return bestScore;
@@ -322,14 +370,14 @@ Score Searcher::quiesce(Score alpha, Score beta)
              ? MoveList::from_position(hist_.pos())
              : MoveList::from_position<MoveType::CAPTURES>(hist_.pos());
 
-    rescore_moves(moveList);
+    rescore_moves(moveList, Move{});
 
     for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
+        moveList.pick_move_at(move);
+
         if (!hist_.pos().is_legal(*move)) {
             continue;
         }
-
-        moveList.pick_move_at(move);
 
         searchedMoves++;
 
@@ -357,14 +405,20 @@ Score Searcher::quiesce(Score alpha, Score beta)
     return bestScore;
 }
 
-void Searcher::rescore_moves(MoveList& moveList) const
+void Searcher::rescore_moves(MoveList& moveList, Move bestMove) const
 {
     enum BaseScores : Score
     {
-        CAPTURE_BASE = 2000,
+        CAPTURE_BASE = 2'000,
+        BEST_MOVE    = 10'000,
     };
 
     for (ScoredMove& move : moveList) {
+        if (move == bestMove) {
+            move.set_score(BEST_MOVE);
+            continue;
+        }
+
         if (move.is_castle()) {
             continue;
         }
