@@ -31,8 +31,15 @@
 #include "types.h"
 
 namespace shellac {
+class TranspositionTable;
 
 struct SearchLimits;
+
+enum class NodeType
+{
+    ROOT,
+    STANDARD,
+};
 
 class TimeManager
 {
@@ -65,20 +72,24 @@ class Searcher
 public:
     Searcher() = default;
 
-    void begin_search(const GameHistory& history, const SearchLimits& limits);
+    void begin_search(const GameHistory& history, const SearchLimits& limits, TranspositionTable* tt);
     void stop_searching();
 
 private:
-    void  search_root(int depth);
+    template <NodeType NODE_TYPE>
     Score search(int depth, Score alpha, Score beta);
     Score quiesce(Score alpha, Score beta);
 
-    void rescore_moves(MoveList& moveList) const;
+    void rescore_moves(MoveList& moveList, Move bestMove) const;
 
     TimeManager* timeManager_ = nullptr;
     GameHistory  hist_{std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};
     Move         bestMove_{};
+
     std::vector<Move> allowedRootMoves_{};
+
+    TranspositionTable* tt_ = nullptr;
+    size_t rootPly_;
 
     std::atomic_bool stopSearch_{false};
 };

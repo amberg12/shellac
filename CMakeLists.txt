@@ -43,6 +43,8 @@ add_executable(shellac
         src/search.cpp
         src/search.h
         src/evaluate.cpp
+        src/tt.cpp
+        src/tt.h
 )
 
 set_target_properties(shellac PROPERTIES OUTPUT_NAME ${OUTPUT_NAME})

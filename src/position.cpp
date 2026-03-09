@@ -20,10 +20,18 @@
 
 #include <algorithm>
 #include <cstring>
+#include <random>
 #include <sstream>
 
 namespace shellac {
 namespace {
+namespace z {
+std::uint64_t PieceHash[32][64];
+std::uint64_t CastleHash[16];
+std::uint64_t EnPassantHash[8];
+std::uint64_t SideToMoveHash;
+} // namespace z
+
 size_t piece_to_piece_type_index(const Piece piece)
 {
     return underlying(type_of(piece)) - 1;
@@ -64,6 +72,9 @@ Position Position::from_fen(const std::string& fen)
 
     iss >> token;
     out.set_side_to_move(from_char<Color>(token[0]));
+    if (out.side_to_move() == Color::BLACK) {
+        out.hash_ ^= z::SideToMoveHash;
+    }
 
     iss >> token;
     for (const char c : token) {
@@ -167,7 +178,7 @@ Position::Position(const Position& parent, const Move move) :
     mailBox_{parent.mailBox_}, castlingRights_{parent.castlingRights_},
     sideToMove_{parent.sideToMove_}, enPassantSquare_{parent.enPassantSquare_},
     pieceTypeBitboard_{parent.pieceTypeBitboard_}, colorBitboard_{parent.colorBitboard_},
-    fiftyMoveRule_{parent.fiftyMoveRule_ + 1}
+    fiftyMoveRule_{parent.fiftyMoveRule_ + 1}, hash_{parent.hash_}
 {
     apply_move(move);
     generate_check_info();
@@ -177,7 +188,7 @@ Position::Position(const Position& parent, const Move move, const GameHistory& h
     mailBox_{parent.mailBox_}, castlingRights_{parent.castlingRights_},
     sideToMove_{parent.sideToMove_}, enPassantSquare_{parent.enPassantSquare_},
     pieceTypeBitboard_{parent.pieceTypeBitboard_}, colorBitboard_{parent.colorBitboard_},
-    fiftyMoveRule_{parent.fiftyMoveRule_ + 1}
+    fiftyMoveRule_{parent.fiftyMoveRule_ + 1}, hash_{parent.hash_}
 {
     apply_move(move);
     generate_check_info();
@@ -232,7 +243,7 @@ bool Position::is_legal(const Move move) const
 
     if (kingAttackers_ >= 2) {
         return movingPiece == PieceType::KING && !move.is_castle() &&
-               !attackedSquares_.has_square(dst);
+            !attackedSquares_.has_square(dst);
     }
 
     if (move.is_en_passant()) {
@@ -382,10 +393,15 @@ bool Position::is_repetition_of(const Position& rhs) const
     return sideToMoveEq && enPassantEq && castlingRightsEq && piecesEq;
 }
 
+std::uint64_t Position::hash() const
+{
+    return hash_;
+}
+
 void Position::set_piece(const Square at, const Piece to)
 {
     assert(piece_at(at) == Piece::NONE);
-
+    hash_ ^= z::PieceHash[underlying(to)][underlying(at)];
     mailBox_[underlying(at)] = to;
     set_bitboard(to, at);
 }
@@ -394,7 +410,10 @@ void Position::swap_piece(const Square at, const Piece to)
 {
     assert(piece_at(at) != Piece::NONE);
 
+    const Piece removedPiece = piece_at(at);
     unset_bitboard(piece_at(at), at);
+    hash_ ^= z::PieceHash[underlying(removedPiece)][underlying(at)];
+    hash_ ^= z::PieceHash[underlying(to)][underlying(at)];
     set_bitboard(to, at);
     mailBox_[underlying(at)] = to;
 }
@@ -402,7 +421,9 @@ void Position::swap_piece(const Square at, const Piece to)
 void Position::remove_piece(const Square at)
 {
     assert(piece_at(at) != Piece::NONE);
-    unset_bitboard(piece_at(at), at);
+    const Piece removedPiece = piece_at(at);
+    hash_ ^= z::PieceHash[underlying(removedPiece)][underlying(at)];
+    unset_bitboard(removedPiece, at);
     mailBox_[underlying(at)] = Piece::NONE;
 }
 
@@ -425,12 +446,16 @@ void Position::unset_bitboard(Piece piece, Square at)
 
 void Position::set_castling(const CastlingRights castling)
 {
+    const std::uint8_t oldRights = castlingRights_;
     castlingRights_ |= castling;
+    hash_ ^= z::CastleHash[oldRights] ^ z::CastleHash[castlingRights_];
 }
 
 void Position::unset_castling(const CastlingRights castling)
 {
+    const auto oldRights = castlingRights_;
     castlingRights_ &= ~castling;
+    hash_ ^= z::CastleHash[oldRights] ^ z::CastleHash[castlingRights_];
 }
 
 void Position::set_side_to_move(const Color sideToMove)
@@ -441,12 +466,17 @@ void Position::set_side_to_move(const Color sideToMove)
 void Position::set_en_passant(const Square square)
 {
     assert(enPassantSquare_ == Square::INVALID);
+    hash_ ^= z::EnPassantHash[underlying(file_of(square))];
     enPassantSquare_ = square;
 }
 
 void Position::clear_en_passant()
 {
-    enPassantSquare_ = Square::INVALID;
+    if (enPassantSquare_ != Square::INVALID) {
+        const int hashIndex = underlying(file_of(enPassantSquare_));
+        hash_ ^= z::EnPassantHash[hashIndex];
+        enPassantSquare_ = Square::INVALID;
+    }
 }
 
 void Position::clear_castling_rights(const CastlingRights castling)
@@ -460,6 +490,8 @@ void Position::apply_move(Move move)
     const Color  them = ~us;
     const Square src  = move.src();
     const Square dst  = move.dst();
+
+    hash_ ^= z::SideToMoveHash;
 
     const auto get_captured_piece = [&](const Square d)
     {
@@ -692,9 +724,35 @@ const Position& GameHistory::pos() const
     return gameHistory_.back();
 }
 
+size_t GameHistory::ply() const
+{
+    return gameHistory_.size();
+}
+
 void GameHistory::begin_search()
 {
     gameHistory_.reserve(gameHistory_.size() + 512);
+}
+
+void init_hash()
+{
+    std::mt19937_64 rng(std::random_device{}());
+
+    for (auto& p : z::PieceHash) {
+        for (auto& sq : p) {
+            sq = rng();
+        }
+    }
+
+    for (auto& c : z::CastleHash) {
+        c = rng();
+    }
+
+    for (auto& i : z::EnPassantHash) {
+        i = rng();
+    }
+
+    z::SideToMoveHash = rng();
 }
 
 } // namespace shellac

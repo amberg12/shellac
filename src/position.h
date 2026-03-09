@@ -70,6 +70,8 @@ public:
 
     [[nodiscard]] bool is_repetition_of(const Position& rhs) const;
 
+    [[nodiscard]] std::uint64_t hash() const;
+
 private:
     enum CastlingRights : uint8_t
     {
@@ -111,6 +113,8 @@ private:
     Bitboard pinRays_;
     Bitboard blockers_;
     int      kingAttackers_{};
+
+    std::uint64_t hash_;
 };
 
 constexpr Bitboard Position::pieces() const
@@ -148,6 +152,8 @@ public:
     void pop_move();
 
     [[nodiscard]] const Position& pos() const;
+
+    [[nodiscard]] size_t ply() const;
 
     void begin_search();
 
@@ -204,6 +210,8 @@ public:
 private:
     std::vector<Position> gameHistory_;
 };
+
+void init_hash();
 
 } // namespace shellac
 

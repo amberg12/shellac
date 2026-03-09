@@ -177,6 +177,9 @@ void UciEngine::loop()
             iss >> path;
             engine_.perft_suite(depth, path);
         }
+        else if (token == "ucinewgame") {
+            engine_.new_game();
+        }
 
         std::cout << std::flush;
     }
