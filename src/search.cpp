@@ -264,6 +264,14 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         }
     }
 
+    const Score staticEval = evaluate(hist_.pos());
+    const Score margin     = 150 * depth;
+
+    // There are many parameters that can be adjusted here which may gain elo.
+    if (staticEval >= beta + margin) {
+        return staticEval;
+    }
+
     auto  moveList      = MoveList::from_position(hist_.pos());
     int   searchedMoves = 0;
     Score bestScore     = NEG_INF;
@@ -289,8 +297,9 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         Score score;
         if (searchedMoves == 1) {
             constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::STANDARD;
-            score = -search<N>(depth - 1, -beta, -alpha);
-        } else {
+            score                = -search<N>(depth - 1, -beta, -alpha);
+        }
+        else {
             score = -search<NodeType::STANDARD>(depth - 1, -alpha - 1, -alpha);
             if (score > alpha && IS_PV) {
                 score = -search<NodeType::PV>(depth - 1, -beta, -alpha);
@@ -432,13 +441,15 @@ Score Searcher::quiesce(Score alpha, Score beta)
         Score score;
         if (searchedMoves == 1) {
             constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::STANDARD;
-            score = -quiesce<N>(-beta, -alpha);
-        } else {
+            score                = -quiesce<N>(-beta, -alpha);
+        }
+        else {
             score = -quiesce<NodeType::STANDARD>(-alpha - 1, -alpha);
             if (score > alpha && IS_PV) {
                 score = -quiesce<NodeType::PV>(-beta, -alpha);
             }
-        }        hist_.pop_move();
+        }
+        hist_.pop_move();
 
         if (score > bestScore) {
             bestScore = score;
