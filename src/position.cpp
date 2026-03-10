@@ -194,7 +194,7 @@ Position::Position(const Position& parent, const Move move, const GameHistory& h
     generate_check_info();
     if (fiftyMoveRule_ != 0 && !move.is_castle()) {
         for (auto it = history.rbegin(); it != history.rend(); ++it) {
-            const Position& pos = *it;
+            const auto& [pos, prevMove] = *it;
             if (is_repetition_of(pos)) {
                 repetitions_ = pos.repetitions_ + 1;
                 break;
@@ -493,6 +493,12 @@ void Position::apply_move(Move move)
 
     hash_ ^= z::SideToMoveHash;
 
+    // We want to allow a 'null' move to be taken where we simply pass our turn.
+    if (move.is_null()) {
+        set_side_to_move(them);
+        return;
+    }
+
     const auto get_captured_piece = [&](const Square d)
     {
         if (move.is_en_passant())
@@ -696,22 +702,26 @@ void Position::generate_check_info()
 
 GameHistory::GameHistory(const std::string& fen, const std::vector<std::string>& moves)
 {
-    gameHistory_.push_back(Position::from_fen(fen));
+    gameHistory_.push_back({.position = Position::from_fen(fen), .prevMove = Move{}});
 
     std::for_each(moves.begin(), moves.end(), [this](const std::string& move) { add_move(move); });
 }
 
 void GameHistory::add_move(const std::string& move)
 {
-    const Position& lastPosition = gameHistory_.back();
+    const Position& lastPosition = gameHistory_.back().position;
     const Move      parsedMove   = lastPosition.parse_move(move);
     add_move(parsedMove);
 }
 
 void GameHistory::add_move(Move move)
 {
-    const Position& lastPosition = gameHistory_.back();
-    gameHistory_.emplace_back(lastPosition, move, *this);
+    const Position& lastPosition = gameHistory_.back().position;
+    const SearchState newSearchState = {
+        .position = {lastPosition, move, *this},
+        .prevMove = move,
+    };
+    gameHistory_.emplace_back(newSearchState);
 }
 
 void GameHistory::pop_move()
@@ -720,6 +730,11 @@ void GameHistory::pop_move()
 }
 
 const Position& GameHistory::pos() const
+{
+    return gameHistory_.back().position;
+}
+
+const SearchState& GameHistory::state() const
 {
     return gameHistory_.back();
 }

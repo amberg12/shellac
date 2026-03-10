@@ -575,6 +575,11 @@ public:
         return repr_ == rhs.repr_;
     }
 
+    [[nodiscard]] bool operator!=(const Move rhs) const
+    {
+        return repr_ != rhs.repr_;
+    }
+
 private:
     enum Masks : std::uint16_t
     {
@@ -587,7 +592,7 @@ private:
         PROMOTE_TO = 0b0011'0000'0000'0000,
     };
 
-    std::uint16_t repr_;
+    std::uint16_t repr_{0};
 };
 
 inline std::string to_string(const Move move)

@@ -40,6 +40,7 @@ enum class NodeType
     ROOT,
     PV,
     STANDARD,
+    NULL_MOVE_SEARCH,
 };
 
 class TimeManager
