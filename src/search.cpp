@@ -217,6 +217,8 @@ void Searcher::stop_searching()
 template <NodeType NODE_TYPE>
 Score Searcher::search(int depth, Score alpha, const Score beta)
 {
+    constexpr bool IS_PV = NODE_TYPE == NodeType::PV || NODE_TYPE == NodeType::ROOT;
+
     if (stopSearch_.load() == true) {
         return 0;
     }
@@ -283,7 +285,18 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         searchedMoves++;
 
         hist_.add_move(*move);
-        Score score = -search<NodeType::STANDARD>(depth - 1, -beta, -alpha);
+
+        Score score;
+        if (searchedMoves == 1) {
+            constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::STANDARD;
+            score = -search<N>(depth - 1, -beta, -alpha);
+        } else {
+            score = -search<NodeType::STANDARD>(depth - 1, -alpha - 1, -alpha);
+            if (score > alpha && IS_PV) {
+                score = -search<NodeType::PV>(depth - 1, -beta, -alpha);
+            }
+        }
+
         hist_.pop_move();
 
         if (score > bestScore) {
@@ -342,6 +355,10 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
 template <NodeType NODE_TYPE>
 Score Searcher::quiesce(Score alpha, Score beta)
 {
+    static_assert(NODE_TYPE != NodeType::ROOT);
+
+    constexpr bool IS_PV = NODE_TYPE == NodeType::PV || NODE_TYPE == NodeType::ROOT;
+
     if (stopSearch_.load() == true) {
         return 0;
     }
@@ -411,8 +428,17 @@ Score Searcher::quiesce(Score alpha, Score beta)
         searchedMoves++;
 
         hist_.add_move(*move);
-        Score score = -quiesce<NodeType::STANDARD>(-beta, -alpha);
-        hist_.pop_move();
+
+        Score score;
+        if (searchedMoves == 1) {
+            constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::STANDARD;
+            score = -quiesce<N>(-beta, -alpha);
+        } else {
+            score = -quiesce<NodeType::STANDARD>(-alpha - 1, -alpha);
+            if (score > alpha && IS_PV) {
+                score = -quiesce<NodeType::PV>(-beta, -alpha);
+            }
+        }        hist_.pop_move();
 
         if (score > bestScore) {
             bestScore = score;
