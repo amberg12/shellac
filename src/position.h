@@ -142,6 +142,12 @@ constexpr Bitboard Position::pieces(const Color color, PieceTypes... pieceTypes)
     return pieces(color) & pieces(pieceTypes...);
 }
 
+struct SearchState
+{
+    Position position;
+    Move     prevMove;
+};
+
 class GameHistory
 {
 public:
@@ -151,7 +157,8 @@ public:
     void add_move(Move move);
     void pop_move();
 
-    [[nodiscard]] const Position& pos() const;
+    [[nodiscard]] const Position&    pos() const;
+    [[nodiscard]] const SearchState& state() const;
 
     [[nodiscard]] size_t ply() const;
 
@@ -208,7 +215,7 @@ public:
     }
 
 private:
-    std::vector<Position> gameHistory_;
+    std::vector<SearchState> gameHistory_;
 };
 
 void init_hash();

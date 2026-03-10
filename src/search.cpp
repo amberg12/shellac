@@ -217,7 +217,8 @@ void Searcher::stop_searching()
 template <NodeType NODE_TYPE>
 Score Searcher::search(int depth, Score alpha, const Score beta)
 {
-    constexpr bool IS_PV = NODE_TYPE == NodeType::PV || NODE_TYPE == NodeType::ROOT;
+    constexpr bool IS_PV   = NODE_TYPE == NodeType::PV || NODE_TYPE == NodeType::ROOT;
+    constexpr bool IS_ROOT = NODE_TYPE == NodeType::ROOT;
 
     if (stopSearch_.load() == true) {
         return 0;
@@ -230,7 +231,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         return 0;
     }
 
-    if (depth == 0) {
+    if (depth <= 0) {
         return quiesce<NodeType::STANDARD>(alpha, beta);
     }
 
@@ -238,10 +239,12 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         return DRAW_SCORE;
     }
 
+    const Move prevMove = hist_.state().prevMove;
+
     const int   plyFromRoot   = hist_.ply() - rootPly_;
     const Score originalAlpha = alpha;
 
-    auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_->read(hist_.pos());
+    auto [ttMove, ttScore, ttDepth, ttTag, ttAge] = tt_->read(hist_.pos());
     if (!ttMove.is_null() && ttDepth >= depth) {
         if constexpr (NODE_TYPE == NodeType::ROOT) {
             if (bestMove_.is_null()) {
@@ -270,6 +273,25 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     // There are many parameters that can be adjusted here which may gain elo.
     if (staticEval >= beta + margin) {
         return staticEval;
+    }
+
+    const bool nmpIsLegalPos = !hist_.pos().is_check();
+    const bool nmpIsOkNode   = !IS_PV && NODE_TYPE != NodeType::NULL_MOVE_SEARCH;
+
+    if (nmpIsLegalPos && nmpIsOkNode && depth >= 3 && staticEval >= beta + 10 * depth) {
+        constexpr int r = 4;
+        hist_.add_move(Move{});
+        Score nullMoveScore = -search<NodeType::NULL_MOVE_SEARCH>(depth - r, -beta, -(beta - 1));
+        hist_.pop_move();
+
+        if (nullMoveScore >= beta) {
+            // Verification.
+            nullMoveScore = search<NodeType::NULL_MOVE_SEARCH>(depth - r, beta - 1, beta);
+
+            if (nullMoveScore >= beta) {
+                return nullMoveScore;
+            }
+        }
     }
 
     auto  moveList      = MoveList::from_position(hist_.pos());
