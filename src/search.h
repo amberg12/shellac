@@ -78,6 +78,7 @@ public:
 private:
     template <NodeType NODE_TYPE>
     Score search(int depth, Score alpha, Score beta);
+    template <NodeType NODE_TYPE>
     Score quiesce(Score alpha, Score beta);
 
     void rescore_moves(MoveList& moveList, Move bestMove) const;

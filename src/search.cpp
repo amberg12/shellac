@@ -229,13 +229,14 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (depth == 0) {
-        return quiesce(alpha, beta);
+        return quiesce<NodeType::STANDARD>(alpha, beta);
     }
 
     if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
         return DRAW_SCORE;
     }
 
+    const int   plyFromRoot   = hist_.ply() - rootPly_;
     const Score originalAlpha = alpha;
 
     auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_->read(hist_.pos());
@@ -246,7 +247,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
             }
         }
 
-        ttScore = tt_to_score(ttScore, hist_.ply() - rootPly_);
+        ttScore = tt_to_score(ttScore, plyFromRoot);
 
         if (ttTag == TtTag::EXACT) {
             return ttScore;
@@ -300,7 +301,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (searchedMoves == 0) {
-        bestScore = hist_.pos().is_check() ? MATE_SCORE + depth : DRAW_SCORE;
+        bestScore = hist_.pos().is_check() ? MATE_SCORE + plyFromRoot : DRAW_SCORE;
     }
 
     TtTag writeTag = TtTag::EXACT;
@@ -311,7 +312,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         writeTag = TtTag::LOWER;
     }
 
-    const Score writeScore = score_to_tt(bestScore, hist_.ply() - rootPly_);
+    const Score writeScore = score_to_tt(bestScore, plyFromRoot);
     if (!stopSearch_.load()) {
         tt_->write(hist_.pos(), bestMove, writeScore, depth, writeTag);
     }
@@ -338,6 +339,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     return bestScore;
 }
 
+template <NodeType NODE_TYPE>
 Score Searcher::quiesce(Score alpha, Score beta)
 {
     if (stopSearch_.load() == true) {
@@ -351,7 +353,34 @@ Score Searcher::quiesce(Score alpha, Score beta)
         return 0;
     }
 
+    const int   plyFromRoot   = hist_.ply() - rootPly_;
+    const Score originalAlpha = alpha;
+
+    auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_->read(hist_.pos());
+    if (!ttMove.is_null()) {
+        if constexpr (NODE_TYPE == NodeType::ROOT) {
+            if (bestMove_.is_null()) {
+                bestMove_ = ttMove;
+            }
+        }
+
+        ttScore = tt_to_score(ttScore, plyFromRoot);
+
+        if (ttTag == TtTag::EXACT) {
+            return ttScore;
+        }
+
+        if (ttTag == TtTag::LOWER && ttScore >= beta) {
+            return ttScore;
+        }
+
+        if (ttTag == TtTag::UPPER && ttScore <= alpha) {
+            return ttScore;
+        }
+    }
+
     Score bestScore = hist_.pos().is_check() ? NEG_INF : evaluate(hist_.pos());
+    Move  bestMove  = Move{};
 
     if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
         return DRAW_SCORE;
@@ -370,7 +399,7 @@ Score Searcher::quiesce(Score alpha, Score beta)
              ? MoveList::from_position(hist_.pos())
              : MoveList::from_position<MoveType::CAPTURES>(hist_.pos());
 
-    rescore_moves(moveList, Move{});
+    rescore_moves(moveList, ttMove);
 
     for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
         moveList.pick_move_at(move);
@@ -382,11 +411,12 @@ Score Searcher::quiesce(Score alpha, Score beta)
         searchedMoves++;
 
         hist_.add_move(*move);
-        Score score = -quiesce(-beta, -alpha);
+        Score score = -quiesce<NodeType::STANDARD>(-beta, -alpha);
         hist_.pop_move();
 
         if (score > bestScore) {
             bestScore = score;
+            bestMove  = *move;
         }
 
         if (score > alpha) {
@@ -399,7 +429,20 @@ Score Searcher::quiesce(Score alpha, Score beta)
     }
 
     if (searchedMoves == 0) {
-        return hist_.pos().is_check() ? MATE_SCORE : bestScore;
+        bestScore = hist_.pos().is_check() ? MATE_SCORE + plyFromRoot : bestScore;
+    }
+
+    TtTag writeTag = TtTag::EXACT;
+    if (bestScore <= originalAlpha) {
+        writeTag = TtTag::UPPER;
+    }
+    else if (bestScore >= beta) {
+        writeTag = TtTag::LOWER;
+    }
+
+    const Score writeScore = score_to_tt(bestScore, plyFromRoot);
+    if (!stopSearch_.load()) {
+        tt_->write(hist_.pos(), bestMove, writeScore, 0, writeTag);
     }
 
     return bestScore;
