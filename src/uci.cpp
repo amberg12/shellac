@@ -68,17 +68,23 @@ void UciEngine::loop()
 
             if (token == "startpos") {
                 fen = STARTING_POSITION;
+                if (iss >> token && token != "moves") {
+                    token.clear();
+                }
             }
             else {
+                if (token != "fen") {
+                    fen += token + " ";
+                }
                 while (iss >> token && token != "moves") {
                     fen += token + " ";
                 }
             }
 
-            iss >> token;
-
-            while (iss >> token) {
-                moves.push_back(token);
+            if (token == "moves") {
+                while (iss >> token) {
+                    moves.push_back(token);
+                }
             }
 
             currentFen   = fen;
