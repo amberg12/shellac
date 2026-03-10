@@ -38,6 +38,7 @@ struct SearchLimits;
 enum class NodeType
 {
     ROOT,
+    PV,
     STANDARD,
 };
 
