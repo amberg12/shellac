@@ -74,7 +74,8 @@ class Searcher
 public:
     Searcher() = default;
 
-    void begin_search(const GameHistory& history, const SearchLimits& limits, TranspositionTable* tt);
+    void begin_search(const GameHistory& history, const SearchLimits& limits,
+                      TranspositionTable* tt);
     void stop_searching();
 
 private:
@@ -92,6 +93,8 @@ private:
     std::vector<Move> allowedRootMoves_{};
 
     TranspositionTable* tt_ = nullptr;
+    Score               butterflyTable_[2][64][64]{};
+
     size_t rootPly_;
 
     std::atomic_bool stopSearch_{false};

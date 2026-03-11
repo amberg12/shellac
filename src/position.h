@@ -41,6 +41,7 @@ public:
 
     [[nodiscard]] Move parse_move(const std::string& move) const;
     [[nodiscard]] bool is_legal(Move move) const;
+    [[nodiscard]] bool is_capture(Move move) const;
 
     [[nodiscard]] Color side_to_move() const;
 

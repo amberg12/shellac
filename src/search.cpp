@@ -173,6 +173,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     bestMove_ = Move{};
     stopSearch_.store(false);
     rootPly_ = hist_.ply();
+    std::memset(butterflyTable_, 0, sizeof(butterflyTable_));
 
     tt_ = tt;
     tt_->begin_new_search();
@@ -340,6 +341,13 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         }
 
         if (score >= beta) {
+            if (!hist_.pos().is_capture(*move)) {
+                const size_t colorIndex = underlying(hist_.pos().side_to_move());
+                const size_t srcIndex   = underlying(move->src());
+                const size_t dstIndex   = underlying(move->dst());
+                butterflyTable_[colorIndex][srcIndex][dstIndex] += depth * depth;
+            }
+
             break;
         }
     }
@@ -525,14 +533,19 @@ void Searcher::rescore_moves(MoveList& moveList, Move bestMove) const
             continue;
         }
 
-        const PieceType victim = type_of(hist_.pos().piece_at(move.dst()));
-
-        if (victim == PieceType::NONE) {
+        if (hist_.pos().is_capture(move)) {
+            const PieceType victim =
+                move.is_en_passant() ? PieceType::PAWN : type_of(hist_.pos().piece_at(move.dst()));
+            const PieceType attacker = type_of(hist_.pos().piece_at(move.src()));
+            move.set_score(evaluate_piece(victim) - evaluate_piece(attacker) + CAPTURE_BASE);
             continue;
         }
 
-        const PieceType attacker = type_of(hist_.pos().piece_at(move.src()));
-        move.set_score(evaluate_piece(victim) - evaluate_piece(attacker) + CAPTURE_BASE);
+        const size_t colorIndex = underlying(hist_.pos().side_to_move());
+        const size_t srcIndex   = underlying(move.src());
+        const size_t dstIndex   = underlying(move.dst());
+
+        move.set_score(butterflyTable_[colorIndex][srcIndex][dstIndex]);
     }
 }
 
