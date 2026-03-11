@@ -329,6 +329,11 @@ bool Position::is_legal(const Move move) const
     return true;
 }
 
+bool Position::is_capture(const Move move) const
+{
+    return move.is_en_passant() || piece_at(move.dst()) != Piece::NONE;
+}
+
 Color Position::side_to_move() const
 {
     return sideToMove_;
