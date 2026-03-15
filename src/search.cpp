@@ -242,7 +242,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     }
 
     if (depth <= 0) {
-        return quiesce<NodeType::STANDARD>(ss, alpha, beta);
+        return quiesce<NodeType::NON_PV>(ss, alpha, beta);
     }
 
     if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
@@ -283,17 +283,17 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     }
 
     const bool nmpIsLegalPos = !hist_.pos().is_check();
-    const bool nmpIsOkNode   = !IS_PV && NODE_TYPE != NodeType::NULL_MOVE_SEARCH;
+    const bool nmpIsOkNode   = !IS_PV && !(ss - 1)->isNull;
 
     if (nmpIsLegalPos && nmpIsOkNode && depth >= 3 && staticEval >= beta + 10 * depth) {
         constexpr int r = 4;
         add_move(Move{}, ss);
-        Score nullMoveScore = -search<NodeType::NULL_MOVE_SEARCH>(depth - r, ss + 1, -beta, -(beta - 1));
+        Score nullMoveScore = -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1));
         pop_move(ss);
 
         if (nullMoveScore >= beta) {
             // Verification.
-            nullMoveScore = search<NodeType::NULL_MOVE_SEARCH>(depth - r, ss + 1, beta - 1, beta);
+            nullMoveScore = search<NodeType::NON_PV>(depth - r, ss + 1, beta - 1, beta);
 
             if (nullMoveScore >= beta) {
                 return nullMoveScore;
@@ -325,11 +325,11 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         Score score;
         if (searchedMoves == 1) {
-            constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::STANDARD;
+            constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::NON_PV;
             score                = -search<N>(depth - 1, ss + 1, -beta, -alpha);
         }
         else {
-            score = -search<NodeType::STANDARD>(depth - 1, ss + 1, -alpha - 1, -alpha);
+            score = -search<NodeType::NON_PV>(depth - 1, ss + 1, -alpha - 1, -alpha);
             if (score > alpha && IS_PV) {
                 score = -search<NodeType::PV>(depth - 1, ss + 1, -beta, -alpha);
             }
@@ -475,11 +475,11 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
         Score score;
         if (searchedMoves == 1) {
-            constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::STANDARD;
+            constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::NON_PV;
             score                = -quiesce<N>(ss + 1, -beta, -alpha);
         }
         else {
-            score = -quiesce<NodeType::STANDARD>(ss + 1, -alpha - 1, -alpha);
+            score = -quiesce<NodeType::NON_PV>(ss + 1, -alpha - 1, -alpha);
             if (score > alpha && IS_PV) {
                 score = -quiesce<NodeType::PV>(ss + 1, -beta, -alpha);
             }
@@ -525,6 +525,7 @@ void Searcher::add_move(const Move move, SearchStack* ss)
 {
     hist_.add_move(move);
     ss->playedMove = move;
+    ss->isNull = move.is_null();
 }
 
 void Searcher::pop_move(SearchStack* ss)

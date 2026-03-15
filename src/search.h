@@ -39,14 +39,14 @@ struct SearchStack
 {
     int  ply;
     Move playedMove;
+    bool isNull{false};
 };
 
 enum class NodeType
 {
     ROOT,
     PV,
-    STANDARD,
-    NULL_MOVE_SEARCH,
+    NON_PV,
 };
 
 class TimeManager
