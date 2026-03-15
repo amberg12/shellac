@@ -28,6 +28,7 @@
 #include "engine.h"
 #include "movegen.h"
 #include "position.h"
+#include "tt.h"
 #include "types.h"
 
 namespace shellac {
@@ -104,8 +105,8 @@ public:
 
     [[nodiscard]] Limit check_node();
 
-    [[nodiscard]] int nodes_searched() const;
-    [[nodiscard]] int max_depth() const;
+    [[nodiscard]] int           nodes_searched() const;
+    [[nodiscard]] int           max_depth() const;
     [[nodiscard]] std::uint64_t time_elapsed() const;
 
 private:
@@ -121,9 +122,8 @@ class Searcher
 {
 public:
     Searcher() = default;
-
-    void begin_search(const GameHistory& history, const SearchLimits& limits,
-                      TranspositionTable* tt);
+    void new_game();
+    void begin_search(const GameHistory& history, const SearchLimits& limits);
     void stop_searching();
 
 private:
@@ -143,8 +143,8 @@ private:
 
     std::vector<Move> allowedRootMoves_{};
 
-    TranspositionTable* tt_ = nullptr;
-    Score               butterflyTable_[2][64][64]{};
+    TranspositionTable tt_{256};
+    Score              butterflyTable_[2][64][64]{};
 
     SearchReportData reportData_{};
 

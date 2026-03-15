@@ -70,7 +70,6 @@ private:
     std::shared_ptr<Searcher> searcher_ = std::make_shared<Searcher>();
     std::mutex                searcherMutex_;
     ThreadPool                threadPool_;
-    TranspositionTable        tt_{256};
 };
 
 } // namespace shellac

@@ -172,8 +172,7 @@ std::uint64_t TimeManager::time_elapsed() const
     return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
-void Searcher::begin_search(const GameHistory& history, const SearchLimits& limits,
-                            TranspositionTable* tt)
+void Searcher::begin_search(const GameHistory& history, const SearchLimits& limits)
 {
     hist_ = history;
     hist_.begin_search();
@@ -181,8 +180,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     stopSearch_.store(false);
     std::memset(butterflyTable_, 0, sizeof(butterflyTable_));
 
-    tt_ = tt;
-    tt_->begin_new_search();
+    tt_.begin_new_search();
 
     SearchStack  searchStack[SS_OFFSET + MAX_DEPTH * 2]{};
     SearchStack* searchStackRoot = searchStack + 10;
@@ -219,14 +217,17 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
 
         Score score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
 
-        reportData_.pv = searchStackRoot->pv;
-        reportData_.nodes = timeManager_->nodes_searched();
+        reportData_.pv       = searchStackRoot->pv;
+        reportData_.nodes    = timeManager_->nodes_searched();
         reportData_.selDepth = std::max(reportData_.depth, reportData_.selDepth);
-        reportData_.timeMs = timeManager_->time_elapsed();
-        reportData_.nps = reportData_.timeMs > 0 ? (reportData_.nodes * 1000) / reportData_.timeMs : 0;        if (is_mate_score(score)) {
-            reportData_.mate = true;
+        reportData_.timeMs   = timeManager_->time_elapsed();
+        reportData_.nps =
+            reportData_.timeMs > 0 ? (reportData_.nodes * 1000) / reportData_.timeMs : 0;
+        if (is_mate_score(score)) {
+            reportData_.mate   = true;
             reportData_.mateIn = to_mate_moves(score);
-        } else {
+        }
+        else {
             reportData_.score = score;
         }
         reportData_.report();
@@ -235,6 +236,11 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     if (stopSearch_.load() == false) {
         stop_searching();
     }
+}
+
+void Searcher::new_game()
+{
+    tt_.clear();
 }
 
 void Searcher::stop_searching()
@@ -270,7 +276,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     const Score originalAlpha = alpha;
 
-    auto [ttMove, ttScore, ttDepth, ttTag, ttAge] = tt_->read(hist_.pos());
+    auto [ttMove, ttScore, ttDepth, ttTag, ttAge] = tt_.read(hist_.pos());
     if (!ttMove.is_null() && ttDepth >= depth) {
         if constexpr (NODE_TYPE == NodeType::ROOT) {
             if (bestMove_.is_null()) {
@@ -407,7 +413,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     const Score writeScore = score_to_tt(bestScore, ss->ply);
     if (!stopSearch_.load()) {
-        tt_->write(hist_.pos(), bestMove, writeScore, depth, writeTag);
+        tt_.write(hist_.pos(), bestMove, writeScore, depth, writeTag);
     }
 
     if constexpr (NODE_TYPE == NodeType::ROOT) {
@@ -437,7 +443,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
     const Score originalAlpha = alpha;
 
-    auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_->read(hist_.pos());
+    auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_.read(hist_.pos());
     if (!ttMove.is_null()) {
         if constexpr (NODE_TYPE == NodeType::ROOT) {
             if (bestMove_.is_null()) {
@@ -535,7 +541,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
     const Score writeScore = score_to_tt(bestScore, ss->ply);
     if (!stopSearch_.load()) {
-        tt_->write(hist_.pos(), bestMove, writeScore, 0, writeTag);
+        tt_.write(hist_.pos(), bestMove, writeScore, 0, writeTag);
     }
 
     return bestScore;

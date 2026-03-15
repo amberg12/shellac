@@ -68,7 +68,7 @@ void Engine::go(const SearchLimits& searchLimits)
         const SearchLimits limits      = searchLimits;
         const GameHistory  gameHistory = this->gameHistory_;
         std::lock_guard    guard{searcherMutex_};
-        searcher_->begin_search(gameHistory, limits, &tt_);
+        searcher_->begin_search(gameHistory, limits);
     };
 
     threadPool_.enqueue(run_search);
@@ -81,7 +81,7 @@ void Engine::stop()
 
 void Engine::new_game()
 {
-    tt_.clear();
+    searcher_->new_game();
 }
 
 std::string Engine::display() const
