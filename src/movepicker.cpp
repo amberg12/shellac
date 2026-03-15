@@ -16,31 +16,33 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//
-// Created by amber on 04/03/2026.
-//
-
-#ifndef SHELLAC_MOVEGEN_H
-#define SHELLAC_MOVEGEN_H
-
-#include <cstring>
-
-#include "types.h"
+#include "movepicker.h"
 
 namespace shellac {
-static constexpr size_t MAX_LEGAL_MOVES = 267;
-
-class Position;
-
-enum class MoveType
+Move MovePicker::next_move()
 {
-    NORMAL,
-    CAPTURES,
-};
+    while (iter_ < end_) {
+        Move* bestMove = iter_;
+        const Score* bestScore = &scores_[bestMove - moves_];
 
-template <MoveType MOVE_TYPE>
-Move* generate_moves(Move* begin, const Position& position);
+        for (Move* m = iter_ + 1; m < end_; ++m) {
+            Score* s = &scores_[m - moves_];
+            if (*s > *bestScore) {
+                bestMove = m;
+                bestScore = s;
+            }
+        }
 
+        std::swap(*iter_, *bestMove);
+        std::swap(scores_[iter_ - moves_], scores_[bestMove - moves_]);
+
+        const Move move = *iter_;
+        ++iter_;
+
+        if (pos_->is_legal(move))
+            return move;
+    }
+
+    return Move{};
+}
 } // namespace shellac
-
-#endif // SHELLAC_MOVEGEN_H

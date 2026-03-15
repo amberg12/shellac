@@ -25,9 +25,10 @@
 #include <atomic>
 #include <chrono>
 
-#include "engine.h"
+#include "history.h"
 #include "movegen.h"
 #include "position.h"
+#include "tt.h"
 #include "types.h"
 
 namespace shellac {
@@ -35,12 +36,59 @@ class TranspositionTable;
 
 struct SearchLimits;
 
+struct SearchStack
+{
+    int               ply{};
+    Move              playedMove;
+    bool              isNull{false};
+    bool              isNmpVerification{false};
+    std::vector<Move> pv;
+};
+
+struct SearchReportData
+{
+    int depth    = 0;
+    int selDepth = 0;
+
+    std::vector<Move> pv;
+
+    int  score  = 0;
+    bool mate   = false;
+    int  mateIn = 0;
+
+    std::uint64_t nodes  = 0;
+    std::uint64_t nps    = 0;
+    std::uint64_t timeMs = 0;
+
+    void report() const
+    {
+        std::cout << "info"
+                  << " depth " << depth << " seldepth " << selDepth;
+
+        if (mate) {
+            std::cout << " score mate " << mateIn;
+        }
+        else {
+            std::cout << " score cp " << score;
+        }
+
+        std::cout << " nodes " << nodes << " nps " << nps << " time " << timeMs;
+
+        if (!pv.empty()) {
+            std::cout << " pv";
+            for (const auto& move : pv) {
+                std::cout << " " << move;
+            }
+        }
+
+        std::cout << std::endl;
+    }
+};
 enum class NodeType
 {
     ROOT,
     PV,
-    STANDARD,
-    NULL_MOVE_SEARCH,
+    NON_PV,
 };
 
 class TimeManager
@@ -57,8 +105,9 @@ public:
 
     [[nodiscard]] Limit check_node();
 
-    [[nodiscard]] int nodes_searched() const;
-    [[nodiscard]] int max_depth() const;
+    [[nodiscard]] int           nodes_searched() const;
+    [[nodiscard]] int           max_depth() const;
+    [[nodiscard]] std::uint64_t time_elapsed() const;
 
 private:
     std::chrono::steady_clock::time_point startTime_{};
@@ -73,18 +122,18 @@ class Searcher
 {
 public:
     Searcher() = default;
-
-    void begin_search(const GameHistory& history, const SearchLimits& limits,
-                      TranspositionTable* tt);
+    void new_game();
+    void begin_search(const GameHistory& history, const SearchLimits& limits);
     void stop_searching();
 
 private:
     template <NodeType NODE_TYPE>
-    Score search(int depth, Score alpha, Score beta);
+    Score search(int depth, SearchStack* ss, Score alpha, Score beta);
     template <NodeType NODE_TYPE>
-    Score quiesce(Score alpha, Score beta);
+    Score quiesce(SearchStack* ss, Score alpha, Score beta);
 
-    void rescore_moves(MoveList& moveList, Move bestMove) const;
+    void add_move(Move move, SearchStack* ss, bool isSel);
+    void pop_move(SearchStack* ss);
 
     TimeManager* timeManager_ = nullptr;
     GameHistory  hist_{std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};
@@ -92,10 +141,10 @@ private:
 
     std::vector<Move> allowedRootMoves_{};
 
-    TranspositionTable* tt_ = nullptr;
-    Score               butterflyTable_[2][64][64]{};
+    TranspositionTable tt_{256};
+    QuietHistory       quietHistory_{};
 
-    size_t rootPly_;
+    SearchReportData reportData_{};
 
     std::atomic_bool stopSearch_{false};
 };

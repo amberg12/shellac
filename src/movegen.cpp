@@ -24,7 +24,7 @@ namespace shellac {
 namespace {
 
 template <MoveType MOVE_TYPE>
-ScoredMove* generate_pawn_moves(ScoredMove* begin, const Position& position)
+Move* generate_pawn_moves(Move* begin, const Position& position)
 {
     const Bitboard enPassantMask = [&]()
     {
@@ -50,16 +50,16 @@ ScoredMove* generate_pawn_moves(ScoredMove* begin, const Position& position)
 
         for (const Square dst : validDestinations) {
             if (!(Bitboard{dst} & enPassantMask).is_empty()) {
-                *begin++ = ScoredMove::create_en_passant(src, dst);
+                *begin++ = Move::create_en_passant(src, dst);
             }
             else if (rank_of(dst) == Rank::R_1 || rank_of(dst) == Rank::R_8) {
-                *begin++ = ScoredMove::create_promotion(src, dst, PieceType::QUEEN);
-                *begin++ = ScoredMove::create_promotion(src, dst, PieceType::ROOK);
-                *begin++ = ScoredMove::create_promotion(src, dst, PieceType::BISHOP);
-                *begin++ = ScoredMove::create_promotion(src, dst, PieceType::KNIGHT);
+                *begin++ = Move::create_promotion(src, dst, PieceType::QUEEN);
+                *begin++ = Move::create_promotion(src, dst, PieceType::ROOK);
+                *begin++ = Move::create_promotion(src, dst, PieceType::BISHOP);
+                *begin++ = Move::create_promotion(src, dst, PieceType::KNIGHT);
             }
             else {
-                *begin++ = ScoredMove{src, dst};
+                *begin++ = Move{src, dst};
             }
         }
     }
@@ -68,7 +68,7 @@ ScoredMove* generate_pawn_moves(ScoredMove* begin, const Position& position)
 }
 
 template <MoveType MOVE_TYPE, PieceType PIECE_TYPE>
-ScoredMove* generate_moves_for(ScoredMove* begin, const Position& position)
+Move* generate_moves_for(Move* begin, const Position& position)
 {
     for (const Square src : position.pieces(position.side_to_move(), PIECE_TYPE)) {
         const Bitboard attacks      = generate_attacks<PIECE_TYPE>(src, position.pieces());
@@ -82,7 +82,7 @@ ScoredMove* generate_moves_for(ScoredMove* begin, const Position& position)
         }();
 
         for (const Square dst : destinations) {
-            *begin++ = ScoredMove(src, dst);
+            *begin++ = Move(src, dst);
         }
     }
 
@@ -90,7 +90,7 @@ ScoredMove* generate_moves_for(ScoredMove* begin, const Position& position)
 }
 
 template <MoveType MOVE_TYPE>
-ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
+Move* generate_king_moves(Move* begin, const Position& position)
 {
     const Square   src          = position.king_square(position.side_to_move());
     const Bitboard attacks      = generate_attacks<PieceType::KING>(src, position.pieces());
@@ -103,7 +103,7 @@ ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
     }();
 
     for (const Square dst : destinations) {
-        *begin++ = ScoredMove(src, dst);
+        *begin++ = Move(src, dst);
     }
 
     if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
@@ -115,7 +115,7 @@ ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
             position.piece_at(Square::H1) == Piece::W_ROOK &&
             position.piece_at(Square::F1) == Piece::NONE &&
             position.piece_at(Square::G1) == Piece::NONE) {
-            *begin++ = ScoredMove::create_castle(src, Square::G1);
+            *begin++ = Move::create_castle(src, Square::G1);
         }
 
         if (position.can_castle_queenside(Color::WHITE) &&
@@ -123,7 +123,7 @@ ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
             position.piece_at(Square::D1) == Piece::NONE &&
             position.piece_at(Square::C1) == Piece::NONE &&
             position.piece_at(Square::B1) == Piece::NONE) {
-            *begin++ = ScoredMove::create_castle(src, Square::C1);
+            *begin++ = Move::create_castle(src, Square::C1);
         }
     }
     else if (position.side_to_move() == Color::BLACK && src == Square::E8) {
@@ -131,7 +131,7 @@ ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
             position.piece_at(Square::H8) == Piece::B_ROOK &&
             position.piece_at(Square::F8) == Piece::NONE &&
             position.piece_at(Square::G8) == Piece::NONE) {
-            *begin++ = ScoredMove::create_castle(src, Square::G8);
+            *begin++ = Move::create_castle(src, Square::G8);
         }
 
         if (position.can_castle_queenside(Color::BLACK) &&
@@ -139,15 +139,16 @@ ScoredMove* generate_king_moves(ScoredMove* begin, const Position& position)
             position.piece_at(Square::D8) == Piece::NONE &&
             position.piece_at(Square::C8) == Piece::NONE &&
             position.piece_at(Square::B8) == Piece::NONE) {
-            *begin++ = ScoredMove::create_castle(src, Square::C8);
+            *begin++ = Move::create_castle(src, Square::C8);
         }
     }
 
     return begin;
 }
+} // namespace
 
 template <MoveType MOVE_TYPE>
-ScoredMove* generate_moves(ScoredMove* begin, const Position& position)
+Move* generate_moves(Move* begin, const Position& position)
 {
     begin = generate_pawn_moves<MOVE_TYPE>(begin, position);
     begin = generate_moves_for<MOVE_TYPE, PieceType::KNIGHT>(begin, position);
@@ -158,34 +159,7 @@ ScoredMove* generate_moves(ScoredMove* begin, const Position& position)
     return begin;
 }
 
-} // namespace
+template Move* generate_moves<MoveType::NORMAL>(Move* begin, const Position& position);
+template Move* generate_moves<MoveType::CAPTURES>(Move* begin, const Position& position);
 
-template <MoveType Mt>
-MoveList MoveList::from_position(const Position& position)
-{
-    MoveList list{};
-    list.end_ = generate_moves<Mt>(list.buffer_, position);
-    return list;
-}
-
-template MoveList MoveList::from_position<MoveType::NORMAL>(const Position& position);
-template MoveList MoveList::from_position<MoveType::CAPTURES>(const Position& position);
-
-void MoveList::pick_move_at(Move* ptr)
-{
-    assert(ptr < end_);
-    auto to = (ScoredMove*)ptr;
-
-    ScoredMove* best = to;
-
-    for (ScoredMove* scan = to + 1; scan != end_; ++scan) {
-        if (scan->score() > best->score()) {
-            best = scan;
-        }
-    }
-
-    if (best != to) {
-        std::swap(*to, *best);
-    }
-}
 } // namespace shellac

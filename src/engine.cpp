@@ -24,6 +24,7 @@
 #include <sstream>
 
 #include "movegen.h"
+#include "movepicker.h"
 
 namespace shellac {
 namespace {
@@ -35,9 +36,10 @@ uint64_t run_perft(const Position& position, const int depth)
     }
 
     uint64_t       sum   = 0;
-    const MoveList moves = MoveList::from_position(position);
+    auto mp = MovePicker(position);
 
-    for (const Move& move : moves) {
+    Move move;
+    while (!(move = mp.next_move()).is_null()) {
         if (!position.is_legal(move)) {
             continue;
         }
@@ -68,7 +70,7 @@ void Engine::go(const SearchLimits& searchLimits)
         const SearchLimits limits      = searchLimits;
         const GameHistory  gameHistory = this->gameHistory_;
         std::lock_guard    guard{searcherMutex_};
-        searcher_->begin_search(gameHistory, limits, &tt_);
+        searcher_->begin_search(gameHistory, limits);
     };
 
     threadPool_.enqueue(run_search);
@@ -81,7 +83,7 @@ void Engine::stop()
 
 void Engine::new_game()
 {
-    tt_.clear();
+    searcher_->new_game();
 }
 
 std::string Engine::display() const
