@@ -28,6 +28,7 @@
 
 namespace shellac {
 namespace {
+constexpr int SS_OFFSET = 10;
 constexpr int MAX_DEPTH = 200;
 constexpr int MATE_BASE = -MATE_SCORE;
 
@@ -178,6 +179,14 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     tt_ = tt;
     tt_->begin_new_search();
 
+    SearchStack searchStack[SS_OFFSET + MAX_DEPTH * 2]{};
+    SearchStack* searchStackRoot = searchStack + 10;
+
+    for (int ply = 0; ply < MAX_DEPTH; ++ply) {
+        SearchStack* ss = searchStack + SS_OFFSET + ply;
+        ss->ply = ply;
+    }
+
     delete timeManager_;
     timeManager_ = new TimeManager(limits, history.pos().side_to_move());
 
@@ -201,7 +210,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
             break;
         }
 
-        search<NodeType::ROOT>(depth, NEG_INF, POS_INF);
+        search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
     }
 
     if (stopSearch_.load() == false) {
@@ -216,7 +225,7 @@ void Searcher::stop_searching()
 }
 
 template <NodeType NODE_TYPE>
-Score Searcher::search(int depth, Score alpha, const Score beta)
+Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta)
 {
     constexpr bool IS_PV   = NODE_TYPE == NodeType::PV || NODE_TYPE == NodeType::ROOT;
     constexpr bool IS_ROOT = NODE_TYPE == NodeType::ROOT;
@@ -233,16 +242,13 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (depth <= 0) {
-        return quiesce<NodeType::STANDARD>(alpha, beta);
+        return quiesce<NodeType::STANDARD>(ss, alpha, beta);
     }
 
     if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
         return DRAW_SCORE;
     }
 
-    const Move prevMove = hist_.state().prevMove;
-
-    const int   plyFromRoot   = hist_.ply() - rootPly_;
     const Score originalAlpha = alpha;
 
     auto [ttMove, ttScore, ttDepth, ttTag, ttAge] = tt_->read(hist_.pos());
@@ -253,7 +259,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
             }
         }
 
-        ttScore = tt_to_score(ttScore, plyFromRoot);
+        ttScore = tt_to_score(ttScore, ss->ply);
 
         if (ttTag == TtTag::EXACT) {
             return ttScore;
@@ -281,13 +287,13 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
 
     if (nmpIsLegalPos && nmpIsOkNode && depth >= 3 && staticEval >= beta + 10 * depth) {
         constexpr int r = 4;
-        hist_.add_move(Move{});
-        Score nullMoveScore = -search<NodeType::NULL_MOVE_SEARCH>(depth - r, -beta, -(beta - 1));
-        hist_.pop_move();
+        add_move(Move{}, ss);
+        Score nullMoveScore = -search<NodeType::NULL_MOVE_SEARCH>(depth - r, ss + 1, -beta, -(beta - 1));
+        pop_move(ss);
 
         if (nullMoveScore >= beta) {
             // Verification.
-            nullMoveScore = search<NodeType::NULL_MOVE_SEARCH>(depth - r, beta - 1, beta);
+            nullMoveScore = search<NodeType::NULL_MOVE_SEARCH>(depth - r, ss + 1, beta - 1, beta);
 
             if (nullMoveScore >= beta) {
                 return nullMoveScore;
@@ -315,21 +321,21 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
 
         searchedMoves++;
 
-        hist_.add_move(*move);
+        add_move(*move, ss);
 
         Score score;
         if (searchedMoves == 1) {
             constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::STANDARD;
-            score                = -search<N>(depth - 1, -beta, -alpha);
+            score                = -search<N>(depth - 1, ss + 1, -beta, -alpha);
         }
         else {
-            score = -search<NodeType::STANDARD>(depth - 1, -alpha - 1, -alpha);
+            score = -search<NodeType::STANDARD>(depth - 1, ss + 1, -alpha - 1, -alpha);
             if (score > alpha && IS_PV) {
-                score = -search<NodeType::PV>(depth - 1, -beta, -alpha);
+                score = -search<NodeType::PV>(depth - 1, ss + 1, -beta, -alpha);
             }
         }
 
-        hist_.pop_move();
+        pop_move(ss);
 
         if (score > bestScore) {
             bestScore = score;
@@ -353,7 +359,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
     }
 
     if (searchedMoves == 0) {
-        bestScore = hist_.pos().is_check() ? MATE_SCORE + plyFromRoot : DRAW_SCORE;
+        bestScore = hist_.pos().is_check() ? MATE_SCORE + ss->ply : DRAW_SCORE;
     }
 
     TtTag writeTag = TtTag::EXACT;
@@ -364,7 +370,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
         writeTag = TtTag::LOWER;
     }
 
-    const Score writeScore = score_to_tt(bestScore, plyFromRoot);
+    const Score writeScore = score_to_tt(bestScore, ss->ply);
     if (!stopSearch_.load()) {
         tt_->write(hist_.pos(), bestMove, writeScore, depth, writeTag);
     }
@@ -392,7 +398,7 @@ Score Searcher::search(int depth, Score alpha, const Score beta)
 }
 
 template <NodeType NODE_TYPE>
-Score Searcher::quiesce(Score alpha, Score beta)
+Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 {
     static_assert(NODE_TYPE != NodeType::ROOT);
 
@@ -409,7 +415,6 @@ Score Searcher::quiesce(Score alpha, Score beta)
         return 0;
     }
 
-    const int   plyFromRoot   = hist_.ply() - rootPly_;
     const Score originalAlpha = alpha;
 
     auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_->read(hist_.pos());
@@ -420,7 +425,7 @@ Score Searcher::quiesce(Score alpha, Score beta)
             }
         }
 
-        ttScore = tt_to_score(ttScore, plyFromRoot);
+        ttScore = tt_to_score(ttScore, ss->ply);
 
         if (ttTag == TtTag::EXACT) {
             return ttScore;
@@ -466,20 +471,21 @@ Score Searcher::quiesce(Score alpha, Score beta)
 
         searchedMoves++;
 
-        hist_.add_move(*move);
+        add_move(*move, ss);
 
         Score score;
         if (searchedMoves == 1) {
             constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::STANDARD;
-            score                = -quiesce<N>(-beta, -alpha);
+            score                = -quiesce<N>(ss + 1, -beta, -alpha);
         }
         else {
-            score = -quiesce<NodeType::STANDARD>(-alpha - 1, -alpha);
+            score = -quiesce<NodeType::STANDARD>(ss + 1, -alpha - 1, -alpha);
             if (score > alpha && IS_PV) {
-                score = -quiesce<NodeType::PV>(-beta, -alpha);
+                score = -quiesce<NodeType::PV>(ss + 1, -beta, -alpha);
             }
         }
-        hist_.pop_move();
+
+        pop_move(ss);
 
         if (score > bestScore) {
             bestScore = score;
@@ -496,7 +502,7 @@ Score Searcher::quiesce(Score alpha, Score beta)
     }
 
     if (searchedMoves == 0) {
-        bestScore = hist_.pos().is_check() ? MATE_SCORE + plyFromRoot : bestScore;
+        bestScore = hist_.pos().is_check() ? MATE_SCORE + ss->ply : bestScore;
     }
 
     TtTag writeTag = TtTag::EXACT;
@@ -507,12 +513,24 @@ Score Searcher::quiesce(Score alpha, Score beta)
         writeTag = TtTag::LOWER;
     }
 
-    const Score writeScore = score_to_tt(bestScore, plyFromRoot);
+    const Score writeScore = score_to_tt(bestScore, ss->ply);
     if (!stopSearch_.load()) {
         tt_->write(hist_.pos(), bestMove, writeScore, 0, writeTag);
     }
 
     return bestScore;
+}
+
+void Searcher::add_move(const Move move, SearchStack* ss)
+{
+    hist_.add_move(move);
+    ss->playedMove = move;
+}
+
+void Searcher::pop_move(SearchStack* ss)
+{
+    hist_.pop_move();
+    (void)ss;
 }
 
 void Searcher::rescore_moves(MoveList& moveList, Move bestMove) const
