@@ -40,6 +40,7 @@ struct SearchStack
     int  ply;
     Move playedMove;
     bool isNull{false};
+    bool isNmpVerification{false};
 };
 
 enum class NodeType
