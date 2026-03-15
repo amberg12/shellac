@@ -207,13 +207,11 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
         reportData_ = SearchReportData{};
 
-        if (stopSearch_.load() == true) {
-            break;
-        }
-
         Score score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
 
-        reportData_.pv       = searchStackRoot->pv;
+        bool isCorruptPv = stopSearch_.load();
+
+        reportData_.pv       = isCorruptPv ? std::vector<Move>{} : searchStackRoot->pv;
         reportData_.nodes    = timeManager_->nodes_searched();
         reportData_.selDepth = std::max(reportData_.depth, reportData_.selDepth);
         reportData_.timeMs   = timeManager_->time_elapsed();
@@ -278,20 +276,20 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             if (bestMove_.is_null()) {
                 bestMove_ = ttMove;
             }
-        }
+        } else {
+            ttScore = tt_to_score(ttScore, ss->ply);
 
-        ttScore = tt_to_score(ttScore, ss->ply);
+            if (ttTag == TtTag::EXACT) {
+                return ttScore;
+            }
 
-        if (ttTag == TtTag::EXACT) {
-            return ttScore;
-        }
+            if (ttTag == TtTag::LOWER && ttScore >= beta) {
+                return ttScore;
+            }
 
-        if (ttTag == TtTag::LOWER && ttScore >= beta) {
-            return ttScore;
-        }
-
-        if (ttTag == TtTag::UPPER && ttScore <= alpha) {
-            return ttScore;
+            if (ttTag == TtTag::UPPER && ttScore <= alpha) {
+                return ttScore;
+            }
         }
     }
 
@@ -368,6 +366,10 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             ss->pv.clear();
             ss->pv.push_back(move);
             for (const auto& m : (ss + 1)->pv) {
+                if (m.is_null()) {
+                    continue;
+                }
+
                 ss->pv.push_back(m);
             }
         }
@@ -537,6 +539,7 @@ void Searcher::add_move(const Move move, SearchStack* ss, bool isSel)
     hist_.add_move(move);
     ss->playedMove = move;
     ss->isNull     = move.is_null();
+    (ss + 1)->pv.clear();
 
     if (isSel) {
         reportData_.selDepth = std::max(reportData_.selDepth, (ss + 1)->ply);
