@@ -25,7 +25,7 @@
 #include <atomic>
 #include <chrono>
 
-#include "engine.h"
+#include "history.h"
 #include "movegen.h"
 #include "position.h"
 #include "tt.h"
@@ -135,8 +135,6 @@ private:
     void add_move(Move move, SearchStack* ss, bool isSel);
     void pop_move(SearchStack* ss);
 
-    void rescore_moves(MoveList& moveList, Move bestMove) const;
-
     TimeManager* timeManager_ = nullptr;
     GameHistory  hist_{std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};
     Move         bestMove_{};
@@ -144,7 +142,7 @@ private:
     std::vector<Move> allowedRootMoves_{};
 
     TranspositionTable tt_{256};
-    Score              butterflyTable_[2][64][64]{};
+    QuietHistory       quietHistory_{};
 
     SearchReportData reportData_{};
 

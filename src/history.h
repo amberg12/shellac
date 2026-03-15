@@ -16,31 +16,25 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//
-// Created by amber on 04/03/2026.
-//
-
-#ifndef SHELLAC_MOVEGEN_H
-#define SHELLAC_MOVEGEN_H
-
-#include <cstring>
-
+#ifndef SHELLAC_HISTORY_H
+#define SHELLAC_HISTORY_H
+#include "position.h"
 #include "types.h"
 
 namespace shellac {
-static constexpr size_t MAX_LEGAL_MOVES = 267;
 
-class Position;
-
-enum class MoveType
+class QuietHistory
 {
-    NORMAL,
-    CAPTURES,
-};
+public:
+    QuietHistory() = default;
 
-template <MoveType MOVE_TYPE>
-Move* generate_moves(Move* begin, const Position& position);
+    [[nodiscard]] Score read(const Position& pos, Move move) const;
+    void                write(const Position& pos, Move move, Score bonus);
+
+private:
+    Score butterflyTable_[2][64][64]{};
+};
 
 } // namespace shellac
 
-#endif // SHELLAC_MOVEGEN_H
+#endif // SHELLAC_HISTORY_H

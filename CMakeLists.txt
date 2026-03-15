@@ -45,6 +45,10 @@ add_executable(shellac
         src/evaluate.cpp
         src/tt.cpp
         src/tt.h
+        src/movepicker.cpp
+        src/movepicker.h
+        src/history.cpp
+        src/history.h
 )
 
 set_target_properties(shellac PROPERTIES OUTPUT_NAME ${OUTPUT_NAME})

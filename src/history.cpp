@@ -16,31 +16,25 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//
-// Created by amber on 04/03/2026.
-//
-
-#ifndef SHELLAC_MOVEGEN_H
-#define SHELLAC_MOVEGEN_H
-
-#include <cstring>
-
-#include "types.h"
+#include "history.h"
 
 namespace shellac {
-static constexpr size_t MAX_LEGAL_MOVES = 267;
-
-class Position;
-
-enum class MoveType
+Score QuietHistory::read(const Position& pos, const Move move) const
 {
-    NORMAL,
-    CAPTURES,
-};
+    const size_t colorIndex = underlying(pos.side_to_move());
+    const size_t srcIndex   = underlying(move.src());
+    const size_t dstIndex   = underlying(move.dst());
 
-template <MoveType MOVE_TYPE>
-Move* generate_moves(Move* begin, const Position& position);
+    return butterflyTable_[colorIndex][srcIndex][dstIndex];
+}
+
+void QuietHistory::write(const Position& pos, const Move move, const Score bonus)
+{
+    const size_t colorIndex = underlying(pos.side_to_move());
+    const size_t srcIndex   = underlying(move.src());
+    const size_t dstIndex   = underlying(move.dst());
+
+    butterflyTable_[colorIndex][srcIndex][dstIndex] = bonus;
+}
 
 } // namespace shellac
-
-#endif // SHELLAC_MOVEGEN_H

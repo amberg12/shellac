@@ -25,6 +25,7 @@
 #include "tt.h"
 
 #include "evaluate.h"
+#include "movepicker.h"
 
 namespace shellac {
 namespace {
@@ -178,7 +179,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     hist_.begin_search();
     bestMove_ = Move{};
     stopSearch_.store(false);
-    std::memset(butterflyTable_, 0, sizeof(butterflyTable_));
+    quietHistory_ = QuietHistory{};
 
     tt_.begin_new_search();
 
@@ -201,12 +202,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     }
 
     // Sometimes we try to make a null move, so we load a move in.
-    MoveList rootPseudoMoves = MoveList::from_position(hist_.pos());
-    for (const Move m : rootPseudoMoves) {
-        if (hist_.pos().is_legal(m)) {
-            bestMove_ = m;
-        }
-    }
+    bestMove_ = MovePicker::create(hist_.pos(), Move{}, searchStackRoot, quietHistory_).next_move();
 
     for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
         reportData_ = SearchReportData{};
@@ -336,27 +332,20 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         }
     }
 
-    auto  moveList      = MoveList::from_position(hist_.pos());
+    auto  mp            = MovePicker::create(hist_.pos(), ttMove, ss, quietHistory_);
     int   searchedMoves = 0;
     Score bestScore     = NEG_INF;
     Move  bestMove      = Move{};
 
-    rescore_moves(moveList, ttMove);
-
-    for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
+    Move move;
+    while (!(move = mp.next_move()).is_null()) {
         if (NODE_TYPE == NodeType::ROOT && stopSearch_.load()) {
             break;
         }
 
-        moveList.pick_move_at(move);
-
-        if (!hist_.pos().is_legal(*move)) {
-            continue;
-        }
-
         searchedMoves++;
 
-        add_move(*move, ss, false);
+        add_move(move, ss, false);
 
         Score score;
         if (searchedMoves == 1) {
@@ -374,10 +363,10 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         if (score > bestScore) {
             bestScore = score;
-            bestMove  = *move;
+            bestMove  = move;
 
             ss->pv.clear();
-            ss->pv.push_back(*move);
+            ss->pv.push_back(move);
             for (const auto& m : (ss + 1)->pv) {
                 ss->pv.push_back(m);
             }
@@ -388,11 +377,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         }
 
         if (score >= beta) {
-            if (!hist_.pos().is_capture(*move)) {
-                const size_t colorIndex = underlying(hist_.pos().side_to_move());
-                const size_t srcIndex   = underlying(move->src());
-                const size_t dstIndex   = underlying(move->dst());
-                butterflyTable_[colorIndex][srcIndex][dstIndex] += depth * depth;
+            if (!hist_.pos().is_capture(move)) {
+                quietHistory_.write(hist_.pos(), move, depth * depth);
             }
 
             break;
@@ -481,23 +467,22 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
         alpha = bestScore;
     }
 
-    int  searchedMoves = 0;
-    auto moveList      = hist_.pos().is_check()
-             ? MoveList::from_position(hist_.pos())
-             : MoveList::from_position<MoveType::CAPTURES>(hist_.pos());
+    int searchedMoves = 0;
 
-    rescore_moves(moveList, ttMove);
+    MovePicker mp; // default-construct first
+    if (hist_.pos().is_check()) {
+        mp = MovePicker::create(hist_.pos(), ttMove, ss, quietHistory_);
+    }
+    else {
+        mp = MovePicker::create<MoveType::CAPTURES>(hist_.pos(), ttMove, ss, quietHistory_);
+    }
 
-    for (ScoredMove* move = moveList.begin(); move != moveList.end(); ++move) {
-        moveList.pick_move_at(move);
-
-        if (!hist_.pos().is_legal(*move)) {
-            continue;
-        }
+    Move move;
+    while (!(move = mp.next_move()).is_null()) {
 
         searchedMoves++;
 
-        add_move(*move, ss, true);
+        add_move(move, ss, true);
 
         Score score;
         if (searchedMoves == 1) {
@@ -515,7 +500,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
         if (score > bestScore) {
             bestScore = score;
-            bestMove  = *move;
+            bestMove  = move;
         }
 
         if (score > alpha) {
@@ -566,39 +551,4 @@ void Searcher::pop_move(SearchStack* ss)
     hist_.pop_move();
     (void)ss;
 }
-
-void Searcher::rescore_moves(MoveList& moveList, Move bestMove) const
-{
-    enum BaseScores : Score
-    {
-        CAPTURE_BASE = 2'000,
-        BEST_MOVE    = 10'000,
-    };
-
-    for (ScoredMove& move : moveList) {
-        if (move == bestMove) {
-            move.set_score(BEST_MOVE);
-            continue;
-        }
-
-        if (move.is_castle()) {
-            continue;
-        }
-
-        if (hist_.pos().is_capture(move)) {
-            const PieceType victim =
-                move.is_en_passant() ? PieceType::PAWN : type_of(hist_.pos().piece_at(move.dst()));
-            const PieceType attacker = type_of(hist_.pos().piece_at(move.src()));
-            move.set_score(evaluate_piece(victim) - evaluate_piece(attacker) + CAPTURE_BASE);
-            continue;
-        }
-
-        const size_t colorIndex = underlying(hist_.pos().side_to_move());
-        const size_t srcIndex   = underlying(move.src());
-        const size_t dstIndex   = underlying(move.dst());
-
-        move.set_score(butterflyTable_[colorIndex][srcIndex][dstIndex]);
-    }
-}
-
 } // namespace shellac
