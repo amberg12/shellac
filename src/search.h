@@ -37,12 +37,52 @@ struct SearchLimits;
 
 struct SearchStack
 {
-    int  ply;
-    Move playedMove;
-    bool isNull{false};
-    bool isNmpVerification{false};
+    int               ply{};
+    Move              playedMove;
+    bool              isNull{false};
+    bool              isNmpVerification{false};
+    std::vector<Move> pv;
 };
 
+struct SearchReportData
+{
+    int depth    = 0;
+    int selDepth = 0;
+
+    std::vector<Move> pv;
+
+    int  score  = 0;
+    bool mate   = false;
+    int  mateIn = 0;
+
+    std::uint64_t nodes  = 0;
+    std::uint64_t nps    = 0;
+    std::uint64_t timeMs = 0;
+
+    void report() const
+    {
+        std::cout << "info"
+                  << " depth " << depth << " seldepth " << selDepth;
+
+        if (mate) {
+            std::cout << " score mate " << mateIn;
+        }
+        else {
+            std::cout << " score cp " << score;
+        }
+
+        std::cout << " nodes " << nodes << " nps " << nps << " time " << timeMs;
+
+        if (!pv.empty()) {
+            std::cout << " pv";
+            for (const auto& move : pv) {
+                std::cout << " " << move;
+            }
+        }
+
+        std::cout << std::endl;
+    }
+};
 enum class NodeType
 {
     ROOT,
@@ -66,6 +106,7 @@ public:
 
     [[nodiscard]] int nodes_searched() const;
     [[nodiscard]] int max_depth() const;
+    [[nodiscard]] std::uint64_t time_elapsed() const;
 
 private:
     std::chrono::steady_clock::time_point startTime_{};
@@ -91,7 +132,7 @@ private:
     template <NodeType NODE_TYPE>
     Score quiesce(SearchStack* ss, Score alpha, Score beta);
 
-    void add_move(Move move, SearchStack* ss);
+    void add_move(Move move, SearchStack* ss, bool isSel);
     void pop_move(SearchStack* ss);
 
     void rescore_moves(MoveList& moveList, Move bestMove) const;
@@ -105,7 +146,7 @@ private:
     TranspositionTable* tt_ = nullptr;
     Score               butterflyTable_[2][64][64]{};
 
-    size_t rootPly_;
+    SearchReportData reportData_{};
 
     std::atomic_bool stopSearch_{false};
 };

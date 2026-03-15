@@ -166,6 +166,12 @@ int TimeManager::max_depth() const
     return maxDepth_ == -1 ? MAX_DEPTH : maxDepth_;
 }
 
+std::uint64_t TimeManager::time_elapsed() const
+{
+    auto elapsed = std::chrono::steady_clock::now() - startTime_;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+}
+
 void Searcher::begin_search(const GameHistory& history, const SearchLimits& limits,
                             TranspositionTable* tt)
 {
@@ -173,18 +179,17 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     hist_.begin_search();
     bestMove_ = Move{};
     stopSearch_.store(false);
-    rootPly_ = hist_.ply();
     std::memset(butterflyTable_, 0, sizeof(butterflyTable_));
 
     tt_ = tt;
     tt_->begin_new_search();
 
-    SearchStack searchStack[SS_OFFSET + MAX_DEPTH * 2]{};
+    SearchStack  searchStack[SS_OFFSET + MAX_DEPTH * 2]{};
     SearchStack* searchStackRoot = searchStack + 10;
 
     for (int ply = 0; ply < MAX_DEPTH; ++ply) {
         SearchStack* ss = searchStack + SS_OFFSET + ply;
-        ss->ply = ply;
+        ss->ply         = ply;
     }
 
     delete timeManager_;
@@ -206,11 +211,25 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     }
 
     for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
+        reportData_ = SearchReportData{};
+
         if (stopSearch_.load() == true) {
             break;
         }
 
-        search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
+        Score score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
+
+        reportData_.pv = searchStackRoot->pv;
+        reportData_.nodes = timeManager_->nodes_searched();
+        reportData_.selDepth = std::max(reportData_.depth, reportData_.selDepth);
+        reportData_.timeMs = timeManager_->time_elapsed();
+        reportData_.nps = reportData_.timeMs > 0 ? (reportData_.nodes * 1000) / reportData_.timeMs : 0;        if (is_mate_score(score)) {
+            reportData_.mate = true;
+            reportData_.mateIn = to_mate_moves(score);
+        } else {
+            reportData_.score = score;
+        }
+        reportData_.report();
     }
 
     if (stopSearch_.load() == false) {
@@ -287,7 +306,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     if (nmpIsLegalPos && nmpIsOkNode && depth >= 3 && staticEval >= beta + 10 * depth) {
         constexpr int r = 4;
-        add_move(Move{}, ss);
+        add_move(Move{}, ss, false);
         Score nullMoveScore = -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1));
         pop_move(ss);
 
@@ -331,7 +350,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         searchedMoves++;
 
-        add_move(*move, ss);
+        add_move(*move, ss, false);
 
         Score score;
         if (searchedMoves == 1) {
@@ -350,6 +369,12 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         if (score > bestScore) {
             bestScore = score;
             bestMove  = *move;
+
+            ss->pv.clear();
+            ss->pv.push_back(*move);
+            for (const auto& m : (ss + 1)->pv) {
+                ss->pv.push_back(m);
+            }
         }
 
         if (score > alpha) {
@@ -387,21 +412,6 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     if constexpr (NODE_TYPE == NodeType::ROOT) {
         bestMove_ = bestMove;
-
-        if (stopSearch_.load() == true) {
-            return bestScore;
-        }
-
-        std::cout << "info depth " << depth << " score ";
-        if (is_mate_score(bestScore)) {
-            std::cout << "mate " << to_mate_moves(bestScore);
-        }
-        else {
-            std::cout << "cp " << bestScore;
-        }
-
-        std::cout << " nodes " << timeManager_->nodes_searched() << " pv " << bestMove_ << '\n'
-                  << std::flush;
     }
 
     return bestScore;
@@ -481,7 +491,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
         searchedMoves++;
 
-        add_move(*move, ss);
+        add_move(*move, ss, true);
 
         Score score;
         if (searchedMoves == 1) {
@@ -531,11 +541,18 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
     return bestScore;
 }
 
-void Searcher::add_move(const Move move, SearchStack* ss)
+void Searcher::add_move(const Move move, SearchStack* ss, bool isSel)
 {
     hist_.add_move(move);
     ss->playedMove = move;
-    ss->isNull = move.is_null();
+    ss->isNull     = move.is_null();
+
+    if (isSel) {
+        reportData_.selDepth = std::max(reportData_.selDepth, (ss + 1)->ply);
+    }
+    else {
+        reportData_.depth = std::max(reportData_.depth, (ss + 1)->ply);
+    }
 }
 
 void Searcher::pop_move(SearchStack* ss)
