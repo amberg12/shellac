@@ -26,7 +26,6 @@
 #include <chrono>
 
 #include "history.h"
-#include "movegen.h"
 #include "position.h"
 #include "tt.h"
 #include "types.h"
