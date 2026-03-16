@@ -22,6 +22,9 @@
 #include "engine.h"
 #include "movegen.h"
 #include "search.h"
+
+#include <cmath>
+
 #include "tt.h"
 
 #include "evaluate.h"
@@ -345,16 +348,29 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         add_move(move, ss, false);
 
-        Score score;
-        if (searchedMoves == 1) {
-            constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::NON_PV;
-            score                = -search<N>(depth - 1, ss + 1, -beta, -alpha);
-        }
-        else {
-            score = -search<NodeType::NON_PV>(depth - 1, ss + 1, -alpha - 1, -alpha);
-            if (score > alpha && IS_PV) {
-                score = -search<NodeType::PV>(depth - 1, ss + 1, -beta, -alpha);
+        Score score = NEG_INF;
+        if (depth >= 3 && searchedMoves > 1) {
+            int r = 1 + std::log(depth) * std::log(searchedMoves) / 3;
+
+            // Tactical positions need more care.
+            if (hist_.pos().is_capture(move)) {
+                r -= 1;
             }
+
+            r = std::clamp(r, 0, depth - 1);
+
+            score = -search<NodeType::NON_PV>( depth - r - 1, ss + 1, -alpha - 1, -alpha);
+
+            if (r >= 1 && score > alpha) {
+                score = -search<NodeType::NON_PV>( depth - 1, ss + 1, -alpha - 1, -alpha);
+            }
+        }
+        else if (!IS_PV || searchedMoves != 1) {
+            score = -search<NodeType::NON_PV>(depth - 1, ss + 1, -alpha - 1, -alpha);
+        }
+
+        if (IS_PV && (searchedMoves == 1 || score > alpha)) {
+            score = -search<NodeType::PV>(depth - 1, ss + 1, -beta, -alpha);
         }
 
         pop_move(ss);
