@@ -212,6 +212,10 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
 
         Score score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
 
+        if (stopSearch_.load()) {
+            break;
+        }
+
         bool isCorruptPv = stopSearch_.load();
 
         reportData_.pv       = isCorruptPv ? std::vector<Move>{} : searchStackRoot->pv;
