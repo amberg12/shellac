@@ -19,28 +19,57 @@
 #include "bitboard.h"
 
 #include <array>
+#include <optional>
+#include <random>
+#include <vector>
 
 namespace shellac {
-template <>
-std::enable_if_t<!is_pawn_v<PieceType::KNIGHT>, Bitboard>
-generate_attacks<PieceType::KNIGHT>(const Square src, Bitboard)
+namespace {
+struct MagicEntry
 {
-    const auto origin = Bitboard{src};
-    Bitboard   out    = Bitboard{};
-    out |= origin.shift(Direction::NORTH).shift(Direction::NORTH).shift(Direction::EAST);
-    out |= origin.shift(Direction::NORTH).shift(Direction::NORTH).shift(Direction::WEST);
-    out |= origin.shift(Direction::EAST).shift(Direction::EAST).shift(Direction::NORTH);
-    out |= origin.shift(Direction::EAST).shift(Direction::EAST).shift(Direction::SOUTH);
-    out |= origin.shift(Direction::SOUTH).shift(Direction::SOUTH).shift(Direction::EAST);
-    out |= origin.shift(Direction::SOUTH).shift(Direction::SOUTH).shift(Direction::WEST);
-    out |= origin.shift(Direction::WEST).shift(Direction::WEST).shift(Direction::NORTH);
-    out |= origin.shift(Direction::WEST).shift(Direction::WEST).shift(Direction::SOUTH);
-    return out;
+    Bitboard      mask;
+    std::uint64_t magic;
+    std::uint8_t  indexBits;
+};
+
+std::array<MagicEntry, 64> rookMagics;
+std::array<MagicEntry, 64> bishopMagics;
+
+std::array<std::vector<Bitboard>, 64> rookMoves;
+std::array<std::vector<Bitboard>, 64> bishopMoves;
+
+enum Slider
+{
+    ROOK,
+    BISHOP,
+};
+
+inline size_t magic_index(const MagicEntry& magicEntry, Bitboard blockers)
+{
+    blockers           = blockers & magicEntry.mask;
+    std::uint64_t hash = std::uint64_t(blockers) * magicEntry.magic;
+    return hash >> (64 - magicEntry.indexBits);
 }
 
+inline Bitboard get_rook_moves(Square square, Bitboard blockers)
+{
+    const MagicEntry& magic = rookMagics[underlying(square)];
+    const auto        moves = rookMoves[underlying(square)];
+    return moves[magic_index(magic, blockers)];
+}
+
+inline Bitboard get_bishop_moves(Square square, Bitboard blockers)
+{
+    const MagicEntry& magic = bishopMagics[underlying(square)];
+    const auto        moves = bishopMoves[underlying(square)];
+    return moves[magic_index(magic, blockers)];
+}
+
+template <Slider SLIDER>
+Bitboard generate_slider_moves(Square src, Bitboard blockers);
+
 template <>
-std::enable_if_t<!is_pawn_v<PieceType::BISHOP>, Bitboard>
-generate_attacks<PieceType::BISHOP>(const Square src, const Bitboard blockers)
+Bitboard generate_slider_moves<Slider::BISHOP>(Square src, Bitboard blockers)
 {
     constexpr std::array<std::pair<Direction, Direction>, 4> OFFSETS = {
         std::pair{Direction::NORTH, Direction::EAST},
@@ -66,8 +95,7 @@ generate_attacks<PieceType::BISHOP>(const Square src, const Bitboard blockers)
 }
 
 template <>
-std::enable_if_t<!is_pawn_v<PieceType::ROOK>, Bitboard>
-generate_attacks<PieceType::ROOK>(const Square src, const Bitboard blockers)
+Bitboard generate_slider_moves<Slider::ROOK>(Square src, Bitboard blockers)
 {
     constexpr std::array<Direction, 4> OFFSETS = {
         Direction::NORTH,
@@ -90,6 +118,151 @@ generate_attacks<PieceType::ROOK>(const Square src, const Bitboard blockers)
     }
 
     return out;
+}
+
+template <Slider SLIDER>
+Bitboard relevant_blockers(Square src)
+{
+    Bitboard moves = generate_slider_moves<SLIDER>(src, Bitboard{});
+
+    Bitboard mask = moves;
+    Bitboard srcBB(src);
+
+    if (!srcBB.intersects(RANK_1)) {
+        mask &= ~RANK_1;
+    }
+    if (!srcBB.intersects(RANK_8)) {
+        mask &= ~RANK_8;
+    }
+    if (!srcBB.intersects(FILE_A)) {
+        mask &= ~FILE_A;
+    }
+    if (!srcBB.intersects(FILE_H)) {
+        mask &= ~FILE_H;
+    }
+
+    return mask;
+}
+
+std::vector<Bitboard> subsets(Bitboard mask)
+{
+    std::vector<Bitboard> out {};
+
+    Bitboard subset = Bitboard{};
+
+    do {
+        out.emplace_back(subset);
+        subset = Bitboard((std::uint64_t(subset) - std::uint64_t(mask)) & std::uint64_t(mask));
+    } while (!subset.is_empty());
+
+    return out;
+}
+
+template <Slider SLIDER>
+std::optional<std::vector<Bitboard>> try_make_table(Square square, MagicEntry magicEntry)
+{
+    std::vector<Bitboard> table;
+    for (int i = 0; i < 1 << magicEntry.indexBits; ++i) {
+        table.emplace_back();
+    }
+
+    for (Bitboard blockers : subsets(magicEntry.mask)) {
+        Bitboard  moves      = generate_slider_moves<SLIDER>(square, blockers);
+        Bitboard& tableEntry = table[magic_index(magicEntry, blockers)];
+        if (tableEntry == Bitboard()) {
+            tableEntry = moves;
+        }
+        else if (tableEntry != moves) {
+            return std::nullopt;
+        }
+    }
+
+    return table;
+}
+
+template <Slider SLIDER>
+std::pair<MagicEntry, std::vector<Bitboard>> find_magic(Square square, std::uint8_t indexBits)
+{
+    const Bitboard  mask = relevant_blockers<SLIDER>(square);
+    std::mt19937_64 rng{};
+    while (true) {
+        std::uint64_t         magic = rng() & rng() & rng();
+        MagicEntry            magicEntry{mask, magic, indexBits};
+        std::optional<std::vector<Bitboard>> t;
+        if ((t = try_make_table<SLIDER>(square, magicEntry))) {
+            return {magicEntry, t.value()};
+        }
+    }
+}
+} // namespace
+
+void init_magics()
+{
+    // Standard index bits for Rooks and Bishops
+    static constexpr std::uint8_t ROOK_BITS[64] = {
+        12, 11, 11, 11, 11, 11, 11, 12,
+        11, 10, 10, 10, 10, 10, 10, 11,
+        11, 10, 10, 10, 10, 10, 10, 11,
+        11, 10, 10, 10, 10, 10, 10, 11,
+        11, 10, 10, 10, 10, 10, 10, 11,
+        11, 10, 10, 10, 10, 10, 10, 11,
+        11, 10, 10, 10, 10, 10, 10, 11,
+        12, 11, 11, 11, 11, 11, 11, 12
+    };
+
+    static constexpr std::uint8_t BISHOP_BITS[64] = {
+        6, 5, 5, 5, 5, 5, 5, 6,
+        5, 5, 5, 5, 5, 5, 5, 5,
+        5, 5, 7, 7, 7, 7, 5, 5,
+        5, 5, 7, 9, 9, 7, 5, 5,
+        5, 5, 7, 9, 9, 7, 5, 5,
+        5, 5, 7, 7, 7, 7, 5, 5,
+        5, 5, 5, 5, 5, 5, 5, 5,
+        6, 5, 5, 5, 5, 5, 5, 6
+    };
+
+    for (int i = 0; i < 64; ++i) {
+        Square sq = static_cast<Square>(i);
+
+        auto [rEntry, rTable] = find_magic<Slider::ROOK>(sq, ROOK_BITS[i]);
+        rookMagics[i] = rEntry;
+        rookMoves[i]  = std::move(rTable);
+
+        auto [bEntry, bTable] = find_magic<Slider::BISHOP>(sq, BISHOP_BITS[i]);
+        bishopMagics[i] = bEntry;
+        bishopMoves[i]  = std::move(bTable);
+    }
+}
+
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::KNIGHT>, Bitboard>
+generate_attacks<PieceType::KNIGHT>(const Square src, Bitboard)
+{
+    const auto origin = Bitboard{src};
+    Bitboard   out    = Bitboard{};
+    out |= origin.shift(Direction::NORTH).shift(Direction::NORTH).shift(Direction::EAST);
+    out |= origin.shift(Direction::NORTH).shift(Direction::NORTH).shift(Direction::WEST);
+    out |= origin.shift(Direction::EAST).shift(Direction::EAST).shift(Direction::NORTH);
+    out |= origin.shift(Direction::EAST).shift(Direction::EAST).shift(Direction::SOUTH);
+    out |= origin.shift(Direction::SOUTH).shift(Direction::SOUTH).shift(Direction::EAST);
+    out |= origin.shift(Direction::SOUTH).shift(Direction::SOUTH).shift(Direction::WEST);
+    out |= origin.shift(Direction::WEST).shift(Direction::WEST).shift(Direction::NORTH);
+    out |= origin.shift(Direction::WEST).shift(Direction::WEST).shift(Direction::SOUTH);
+    return out;
+}
+
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::BISHOP>, Bitboard>
+generate_attacks<PieceType::BISHOP>(const Square src, const Bitboard blockers)
+{
+    return get_bishop_moves(src, blockers);
+}
+
+template <>
+std::enable_if_t<!is_pawn_v<PieceType::ROOK>, Bitboard>
+generate_attacks<PieceType::ROOK>(const Square src, const Bitboard blockers)
+{
+    return get_rook_moves(src, blockers);
 }
 
 template <>
