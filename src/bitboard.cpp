@@ -54,14 +54,14 @@ inline size_t magic_index(const MagicEntry& magicEntry, Bitboard blockers)
 inline Bitboard get_rook_moves(Square square, Bitboard blockers)
 {
     const MagicEntry& magic = rookMagics[underlying(square)];
-    const auto        moves = rookMoves[underlying(square)];
+    const auto&       moves = rookMoves[underlying(square)];
     return moves[magic_index(magic, blockers)];
 }
 
 inline Bitboard get_bishop_moves(Square square, Bitboard blockers)
 {
     const MagicEntry& magic = bishopMagics[underlying(square)];
-    const auto        moves = bishopMoves[underlying(square)];
+    const auto&       moves = bishopMoves[underlying(square)];
     return moves[magic_index(magic, blockers)];
 }
 
