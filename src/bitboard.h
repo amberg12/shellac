@@ -344,6 +344,8 @@ generate_attacks<PieceType::KING>(Square src, Bitboard blockers);
 Bitboard generate_pawn_destinations(Color color, Square src, Bitboard blockers);
 Bitboard generate_pawn_attacks(Color color, Square src, Bitboard blockers);
 
+void init_magics();
+
 } // namespace shellac
 
 #endif // SHELLAC_BITBOARD_H
