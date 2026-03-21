@@ -283,7 +283,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             if (bestMove_.is_null()) {
                 bestMove_ = ttMove;
             }
-        } else {
+        }
+        else {
             ttScore = tt_to_score(ttScore, ss->ply);
 
             if (ttTag == TtTag::EXACT) {
@@ -301,38 +302,40 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     }
 
     const Score staticEval = evaluate(hist_.pos());
-    const Score margin     = 150 * depth;
 
-    // There are many parameters that can be adjusted here which may gain elo.
-    if (staticEval >= beta + margin) {
-        return staticEval;
-    }
+    if (!hist_.pos().is_check()) {
+        const Score margin = 150 * depth;
 
-    const bool nmpIsLegalPos = !hist_.pos().is_check();
-    const bool nmpIsOkNode   = !IS_PV && !(ss - 1)->isNull && !ss->isNmpVerification;
+        // There are many parameters that can be adjusted here which may gain elo.
+        if (staticEval >= beta + margin) {
+            return staticEval;
+        }
 
-    if (nmpIsLegalPos && nmpIsOkNode && depth >= 3 && staticEval >= beta + 10 * depth) {
-        constexpr int r = 4;
-        add_move(Move{}, ss, false);
-        Score nullMoveScore = -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1));
-        pop_move(ss);
+        const bool nmpIsOkNode = !IS_PV && !(ss - 1)->isNull && !ss->isNmpVerification;
 
-        if (nullMoveScore >= beta) {
-            // We must verify the NMP value to avoid zugzwang. Here we stop NMP for a few plies in
-            // order to not get stuck reverifying too often.
-            int pliesToSkip = std::max(2, (depth - r) * 3 / 4);
-            for (int i = 0; i < pliesToSkip; ++i) {
-                (ss + i)->isNmpVerification = true;
-            }
-
-            nullMoveScore = search<NodeType::NON_PV>(depth - r, ss, beta - 1, beta);
-
-            for (int i = 0; i < pliesToSkip; ++i) {
-                (ss + i)->isNmpVerification = false;
-            }
+        if (nmpIsOkNode && depth >= 3 && staticEval >= beta + 10 * depth) {
+            constexpr int r = 4;
+            add_move(Move{}, ss, false);
+            Score nullMoveScore = -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1));
+            pop_move(ss);
 
             if (nullMoveScore >= beta) {
-                return nullMoveScore;
+                // We must verify the NMP value to avoid zugzwang. Here we stop NMP for a few plies
+                // in order to not get stuck reverifying too often.
+                int pliesToSkip = std::max(2, (depth - r) * 3 / 4);
+                for (int i = 0; i < pliesToSkip; ++i) {
+                    (ss + i)->isNmpVerification = true;
+                }
+
+                nullMoveScore = search<NodeType::NON_PV>(depth - r, ss, beta - 1, beta);
+
+                for (int i = 0; i < pliesToSkip; ++i) {
+                    (ss + i)->isNmpVerification = false;
+                }
+
+                if (nullMoveScore >= beta) {
+                    return nullMoveScore;
+                }
             }
         }
     }
@@ -365,10 +368,10 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
             r = std::clamp(r, 0, depth - 1);
 
-            score = -search<NodeType::NON_PV>( depth - r - 1, ss + 1, -alpha - 1, -alpha);
+            score = -search<NodeType::NON_PV>(depth - r - 1, ss + 1, -alpha - 1, -alpha);
 
             if (r >= 1 && score > alpha) {
-                score = -search<NodeType::NON_PV>( depth - 1, ss + 1, -alpha - 1, -alpha);
+                score = -search<NodeType::NON_PV>(depth - 1, ss + 1, -alpha - 1, -alpha);
             }
         }
         else if (!IS_PV || searchedMoves != 1) {
