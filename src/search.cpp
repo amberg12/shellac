@@ -350,6 +350,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         searchedMoves++;
 
+        bool isQuiet = !(move.is_promotion() || hist_.pos().is_capture(move));
+
         add_move(move, ss, false);
 
         Score score = NEG_INF;
@@ -399,7 +401,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         }
 
         if (score >= beta) {
-            if (!hist_.pos().is_capture(move)) {
+            if (isQuiet) {
                 quietHistory_.write(hist_.pos(), move, depth * depth);
             }
 
