@@ -35,7 +35,8 @@ public:
     MovePicker(const Position& pos);
 
     template <MoveType MOVE_TYPE = MoveType::NORMAL>
-    static MovePicker create(const Position& pos, Move ttMove, SearchStack* ss, QuietHistory& qHist);
+    static MovePicker create(const Position& pos, Move ttMove, SearchStack* ss,
+                             QuietHistory& qHist);
 
     Move next_move();
 
@@ -56,8 +57,16 @@ MovePicker::MovePicker(const Position& pos)
 }
 
 template <MoveType MOVE_TYPE>
-MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss, QuietHistory& qHist)
+MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
+                              QuietHistory& qHist)
 {
+    enum Bases : Score
+    {
+        TT_MOVE   = 10'000,
+        CAPTURE   = 2'000,
+        PROMOTION = CAPTURE,
+    };
+
     MovePicker mp;
     mp.pos_ = &pos;
 
@@ -67,7 +76,7 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
         Move move = mp.moves_[i];
 
         if (move == ttMove) {
-            mp.scores_[i] = 10'000;
+            mp.scores_[i] = TT_MOVE;
             continue;
         }
 
@@ -76,7 +85,20 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
                 move.is_en_passant() ? PieceType::PAWN : type_of(pos.piece_at(move.dst()));
             const PieceType attacker = type_of(pos.piece_at(move.src()));
 
-            mp.scores_[i] = evaluate_piece(victim) - evaluate_piece(attacker) + 2'000;
+            mp.scores_[i] = evaluate_piece(victim) - evaluate_piece(attacker) + CAPTURE;
+            continue;
+        }
+
+        if (move.is_promotion()) {
+            const PieceType promoteTo = move.promotion_piece();
+
+            if (promoteTo == PieceType::QUEEN) {
+                mp.scores_[i] = QUEEN_SCORE - PAWN_SCORE + PROMOTION;
+            } else {
+                // We assume underpromotion is probably not the right choice.
+                // If underpromotion is good then it is probably best to promote to a knight.
+                mp.scores_[i] = -evaluate_piece(promoteTo);
+            }
             continue;
         }
 
@@ -88,4 +110,4 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
 
 } // namespace shellac
 
-#endif  // SHELLAC_MOVEPICKER_H
+#endif // SHELLAC_MOVEPICKER_H
