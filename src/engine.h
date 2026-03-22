@@ -60,6 +60,8 @@ public:
     void stop();
     void new_game();
 
+    void set_hash_size(size_t hash_size);
+
     // Our extensions.
     [[nodiscard]] std::string display() const;
     void                      perft(int depth) const;

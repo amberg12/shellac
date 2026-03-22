@@ -125,6 +125,8 @@ public:
     void begin_search(const GameHistory& history, const SearchLimits& limits);
     void stop_searching();
 
+    void set_hash_size(size_t mb);
+
 private:
     template <NodeType NODE_TYPE>
     Score search(int depth, SearchStack* ss, Score alpha, Score beta);
@@ -140,7 +142,7 @@ private:
 
     std::vector<Move> allowedRootMoves_{};
 
-    TranspositionTable tt_{256};
+    TranspositionTable tt_{16};
     QuietHistory       quietHistory_{};
 
     SearchReportData reportData_{};

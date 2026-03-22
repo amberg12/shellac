@@ -250,6 +250,11 @@ void Searcher::stop_searching()
     std::cout << "bestmove " << bestMove_ << '\n' << std::flush;
 }
 
+void Searcher::set_hash_size(size_t mb)
+{
+    tt_.resize(mb);
+}
+
 template <NodeType NODE_TYPE>
 Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta)
 {
