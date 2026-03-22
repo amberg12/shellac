@@ -97,8 +97,8 @@ void UciEngine::loop()
         }
         else if (token == "uci") {
             std::cout << "id name Shellac " << BuildIdentifier << std::endl;
-            std::cout << "uciok" << std::endl;
             std::cout << "option name Hash type spin default 16 min 1 max 131072" << std::endl;
+            std::cout << "uciok" << std::endl;
         }
         else if (token == "go") {
             SearchLimits             limits{};
