@@ -345,6 +345,9 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     Score bestScore     = NEG_INF;
     Move  bestMove      = Move{};
 
+    Move searchedQuiets[MAX_LEGAL_MOVES]{};
+    int  searchedQuietCount = 0;
+
     Move move;
     while (!(move = mp.next_move()).is_null()) {
         if (NODE_TYPE == NodeType::ROOT && stopSearch_.load()) {
@@ -354,6 +357,10 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         searchedMoves++;
 
         bool isQuiet = !(move.is_promotion() || hist_.pos().is_capture(move));
+
+        if (isQuiet) {
+            searchedQuiets[searchedQuietCount++] = move;
+        }
 
         add_move(move, ss, false);
 
@@ -406,6 +413,12 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         if (score >= beta) {
             if (isQuiet) {
                 quietHistory_.write(hist_.pos(), move, depth * depth);
+
+                for (int i = 0; i < searchedQuietCount - 1; ++i) {
+                    // The "correct" formula is -depth * depth, but people on Discord have
+                    // suggested this as working better in weaker engines.
+                    quietHistory_.write(hist_.pos(), searchedQuiets[i], -depth);
+                }
             }
 
             break;
