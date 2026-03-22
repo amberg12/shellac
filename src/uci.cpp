@@ -24,16 +24,17 @@
 
 #include "uci.h"
 
+#include <algorithm>
+
 #include "types.h"
 
 namespace shellac {
 namespace {
 bool is_go_keyword(const std::string& token)
 {
-    return token == "searchmoves" || token == "ponder" || token == "wtime" ||
-        token == "btime" || token == "winc" || token == "binc" || token == "movestogo" ||
-        token == "depth" || token == "nodes" || token == "mate" || token == "movetime" ||
-        token == "infinite";
+    return token == "searchmoves" || token == "ponder" || token == "wtime" || token == "btime" ||
+        token == "winc" || token == "binc" || token == "movestogo" || token == "depth" ||
+        token == "nodes" || token == "mate" || token == "movetime" || token == "infinite";
 }
 
 std::optional<int> parse_int_token(const std::string& token)
@@ -97,6 +98,7 @@ void UciEngine::loop()
         else if (token == "uci") {
             std::cout << "id name Shellac " << BuildIdentifier << std::endl;
             std::cout << "uciok" << std::endl;
+            std::cout << "option name Hash type spin default 16 min 1 max 131072" << std::endl;
         }
         else if (token == "go") {
             SearchLimits             limits{};
@@ -186,8 +188,34 @@ void UciEngine::loop()
         else if (token == "ucinewgame") {
             engine_.new_game();
         }
+        else if (token == "setoption") {
+            std::string name, value, word;
 
-        std::cout << std::flush;
+            if (iss >> word && word == "name") {
+                while (iss >> word && word != "value") {
+                    if (!name.empty())
+                        name += " ";
+                    name += word;
+                }
+            }
+
+            if (word == "value") {
+                while (iss >> word) {
+                    if (!value.empty())
+                        value += " ";
+                    value += word;
+                }
+            }
+
+            if (name == "Hash") {
+                if (auto parsed = parse_int_token(value); parsed.has_value()) {
+                    size_t mb = std::clamp(*parsed, 1, 131072);
+                    engine_.set_hash_size(mb);
+                }
+            }
+        }
     }
+
+    std::cout << std::flush;
 }
 } // namespace shellac

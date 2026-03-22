@@ -86,6 +86,11 @@ void Engine::new_game()
     searcher_->new_game();
 }
 
+void Engine::set_hash_size(size_t hash_size)
+{
+    searcher_->set_hash_size(hash_size);
+}
+
 std::string Engine::display() const
 {
     std::ostringstream out;
