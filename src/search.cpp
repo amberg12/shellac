@@ -352,6 +352,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     Move searchedQuiets[MAX_LEGAL_MOVES]{};
     int  searchedQuietCount = 0;
+    bool skipQuiets = false;
 
     Move move;
     while (!(move = mp.next_move()).is_null()) {
@@ -359,12 +360,26 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             break;
         }
 
-        searchedMoves++;
-
         bool isQuiet = !(move.is_promotion() || hist_.pos().is_capture(move));
+
+        if (skipQuiets && isQuiet) {
+            continue;
+        }
+
+        searchedMoves++;
 
         if (isQuiet) {
             searchedQuiets[searchedQuietCount++] = move;
+        }
+
+        // We must not prune of we are at risk of mate or we are at the root.
+        if (!IS_ROOT && !is_mate_score(bestScore)) {
+            // Futility pruning.
+            // If the static eval is such that only loud moves could improve alpha we stop bothering
+            // with quiet moves.
+            if (!hist_.pos().is_check() && depth <= 3 && staticEval + 100 * depth <= alpha) {
+                skipQuiets = true;
+            }
         }
 
         add_move(move, ss, false);
