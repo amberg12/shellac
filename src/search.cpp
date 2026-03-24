@@ -140,7 +140,7 @@ TimeManager::TimeManager(const SearchLimits& searchLimits, const Color sideToMov
         int allocatedTime = remainingTime;
 
         if (searchLimits.movesToGo.has_value()) {
-            allocatedTime = remainingTime / searchLimits.movesToGo.value();
+            allocatedTime = remainingTime / (searchLimits.movesToGo.value() + 1);
         }
         else {
             allocatedTime = remainingTime / 30;
