@@ -36,6 +36,23 @@ constexpr int SS_OFFSET = 10;
 constexpr int MAX_DEPTH = 200;
 constexpr int MATE_BASE = -MATE_SCORE;
 
+bool is_improving(const SearchStack* ss)
+{
+    if (ss->staticEval == NO_SCORE) {
+        return false;
+    }
+
+    if ((ss - 2)->staticEval != NO_SCORE) {
+        return ss->staticEval > (ss - 2)->staticEval;
+    }
+
+    if ((ss - 4)->staticEval != NO_SCORE) {
+        return ss->staticEval > (ss - 4)->staticEval;
+    }
+
+    return true;
+}
+
 bool is_mate_score(const Score score)
 {
     return std::abs(static_cast<int>(score)) >= MATE_BASE - MAX_DEPTH;
@@ -306,19 +323,21 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         }
     }
 
-    const Score staticEval = evaluate(hist_.pos());
+
+    ss->staticEval = hist_.pos().is_check() ? NO_SCORE : evaluate(hist_.pos());
+    bool improving = is_improving(ss);
 
     if (!hist_.pos().is_check()) {
-        const Score margin = 150 * depth;
+        const Score rfpMargin = 150 * depth - 75 * improving;
 
         // There are many parameters that can be adjusted here which may gain elo.
-        if (staticEval >= beta + margin) {
-            return staticEval;
+        if (ss->staticEval >= beta + rfpMargin) {
+            return ss->staticEval;
         }
 
         const bool nmpIsOkNode = !IS_PV && !(ss - 1)->isNull && !ss->isNmpVerification;
 
-        if (nmpIsOkNode && depth >= 3 && staticEval >= beta + 10 * depth) {
+        if (nmpIsOkNode && depth >= 3 && ss->staticEval >= beta + 10 * depth) {
             constexpr int r = 4;
             add_move(Move{}, ss, false);
             Score nullMoveScore = -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1));
@@ -377,7 +396,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             // Futility pruning.
             // If the static eval is such that only loud moves could improve alpha we stop bothering
             // with quiet moves.
-            if (!hist_.pos().is_check() && depth <= 3 && staticEval + 100 * depth <= alpha) {
+            if (!hist_.pos().is_check() && depth <= 3 && ss->staticEval + 100 * depth <= alpha) {
                 skipQuiets = true;
             }
         }

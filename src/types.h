@@ -620,6 +620,7 @@ constexpr Score MATE_SCORE = -30'000;
 constexpr Score DRAW_SCORE = 0;
 constexpr Score NEG_INF    = -31'000;
 constexpr Score POS_INF    = 31'000;
+constexpr Score NO_SCORE   = -32'000;
 
 enum Material : Score
 {
