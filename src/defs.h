@@ -37,11 +37,15 @@ namespace shellac {
 #define CXX_COMPILER_NAME "unknown"
 #endif
 
-#ifdef BUILD_IDENTIFIER
+#define SHELLAC_RELEASE
+
+#ifdef SHELLAC_RELEASE
+constexpr const char* BuildIdentifier = "2";
+#elif defined(BUILD_IDENTIFIER)
 constexpr const char* BuildIdentifier = BUILD_IDENTIFIER "-" CXX_COMPILER_NAME;
 #else
 constexpr const char* BuildIdentifier = "unknown-build";
-#endif // BUILD_IDENTIFIER
+#endif
 
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
 constexpr int ctz(T t)

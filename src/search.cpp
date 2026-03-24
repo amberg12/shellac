@@ -140,7 +140,7 @@ TimeManager::TimeManager(const SearchLimits& searchLimits, const Color sideToMov
         int allocatedTime = remainingTime;
 
         if (searchLimits.movesToGo.has_value()) {
-            allocatedTime = remainingTime / searchLimits.movesToGo.value();
+            allocatedTime = remainingTime / (searchLimits.movesToGo.value() + 1);
         }
         else {
             allocatedTime = remainingTime / 30;
@@ -278,6 +278,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     constexpr bool IS_PV   = NODE_TYPE == NodeType::PV || NODE_TYPE == NodeType::ROOT;
     constexpr bool IS_ROOT = NODE_TYPE == NodeType::ROOT;
 
+    // Cancel the search if required.
     if (stopSearch_.load() == true) {
         return 0;
     }
@@ -289,6 +290,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         return 0;
     }
 
+    // If we have no depth left, evaluate the node. We must resolve any loud moves or checks as we
+    // cannot trust the static eval in such positions.
     if (depth <= 0) {
         return quiesce<NodeType::NON_PV>(ss, alpha, beta);
     }
@@ -299,6 +302,12 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     const Score originalAlpha = alpha;
 
+    // Probe the transposition table.
+    // If we have a value stored here that is higher quality than the search at the current depth,
+    // we simply use this node as our eval.
+    //
+    // Otherwise, we use the best move from when this node was previously searched as a hint in
+    // the move ordering.
     auto [ttMove, ttScore, ttDepth, ttTag, ttAge] = tt_.read(hist_.pos());
     if (!ttMove.is_null() && ttDepth >= depth) {
         if constexpr (NODE_TYPE == NodeType::ROOT) {
@@ -324,10 +333,18 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     }
 
 
+    // We calculate the static eval and place it on the search stack. Placing it on the
+    // search stack allows us to track improvement. Note that we cannot rely on evaluate() at all
+    // if we are in check.
     ss->staticEval = hist_.pos().is_check() ? NO_SCORE : evaluate(hist_.pos());
     bool improving = is_improving(ss);
 
+    // Pruning. It is incorrect to do so in check.
     if (!hist_.pos().is_check()) {
+        // Step 5.1: Reverse futility pruning. We prune if static eval is greater than beta plus
+        // some margin.
+
+        // Making the margin more aggressive when we are improving gains ~20 ELO.
         const Score rfpMargin = 150 * depth - 75 * improving;
 
         // There are many parameters that can be adjusted here which may gain elo.
@@ -335,6 +352,9 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             return ss->staticEval;
         }
 
+        // Null move pruning.
+        // If the evaluation of passing a search is better than beta (plus some margin), a beta
+        // cutoff is likely to occur so we can prune the node.
         const bool nmpIsOkNode = !IS_PV && !(ss - 1)->isNull && !ss->isNmpVerification;
 
         if (nmpIsOkNode && depth >= 3 && ss->staticEval >= beta + 10 * depth) {
@@ -373,6 +393,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     int  searchedQuietCount = 0;
     bool skipQuiets = false;
 
+    // Loop through all legal moves to search them.
     Move move;
     while (!(move = mp.next_move()).is_null()) {
         if (NODE_TYPE == NodeType::ROOT && stopSearch_.load()) {
@@ -391,7 +412,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             searchedQuiets[searchedQuietCount++] = move;
         }
 
-        // We must not prune of we are at risk of mate or we are at the root.
+        // Quiet move pruning.
+        // In some situations it is extremely unlikely that a quiet move will improve eval.
         if (!IS_ROOT && !is_mate_score(bestScore)) {
             // Futility pruning.
             // If the static eval is such that only loud moves could improve alpha we stop bothering
@@ -401,13 +423,18 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             }
         }
 
+        // Make the move
         add_move(move, ss, false);
 
+        // Late move reductions.
+        // We are confident enough in our move ordering to say that late moves are likely not very
+        // good, so we search them at a reduced depth. If we find the moves to be actually good
+        // we must re-search.
         Score score = NEG_INF;
         if (depth >= 3 && searchedMoves > 1) {
             int r = 1 + std::log(depth) * std::log(searchedMoves) / 3;
 
-            // Tactical positions need more care.
+            // Reducing reductions here appears to be required to make LMR gain.
             if (hist_.pos().is_capture(move)) {
                 r -= 1;
             }
@@ -424,12 +451,15 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             score = -search<NodeType::NON_PV>(depth - 1, ss + 1, -alpha - 1, -alpha);
         }
 
+        // If we are in a PV node, and we are either searching the PV or a fail low, we must do a
+        // full window search.
         if (IS_PV && (searchedMoves == 1 || score > alpha)) {
             score = -search<NodeType::PV>(depth - 1, ss + 1, -beta, -alpha);
         }
 
         pop_move(ss);
 
+        // Handle an improved score.
         if (score > bestScore) {
             bestScore = score;
             bestMove  = move;
@@ -445,14 +475,19 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             }
         }
 
+        // Handle fail lows.
         if (score > alpha) {
             alpha = score;
         }
 
+        // Handle fail highs.
         if (score >= beta) {
+            // If a quiet move if a fail high we should update it in the history so we favor
+            // searching similar moves in the future.
             if (isQuiet) {
                 quietHistory_.write(hist_.pos(), move, depth * depth);
 
+                // Likewise, we should apply a "malus" to moves that did not manage to fail high.
                 for (int i = 0; i < searchedQuietCount - 1; ++i) {
                     // The "correct" formula is -depth * depth, but people on Discord have
                     // suggested this as working better in weaker engines.
@@ -508,6 +543,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
     const Score originalAlpha = alpha;
 
+    // Probe the transposition table.
     auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_.read(hist_.pos());
     if (!ttMove.is_null()) {
         if constexpr (NODE_TYPE == NodeType::ROOT) {
@@ -531,6 +567,8 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
         }
     }
 
+    // We use a "standing pat" as a lower bound. If we are in check, we use NEG_INF as a substitute
+    // since we cannot trust eval.
     Score bestScore = hist_.pos().is_check() ? NEG_INF : evaluate(hist_.pos());
     Move  bestMove  = Move{};
 
@@ -548,6 +586,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
     int searchedMoves = 0;
 
+    // If we are in check, we should also generate evasions (so all legal moves in the position).
     MovePicker mp; // default-construct first
     if (hist_.pos().is_check()) {
         mp = MovePicker::create(hist_.pos(), ttMove, ss, quietHistory_);
@@ -564,6 +603,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
         add_move(move, ss, true);
 
         Score score;
+        // Search at a null window first .
         if (searchedMoves == 1) {
             constexpr NodeType N = IS_PV ? NodeType::PV : NodeType::NON_PV;
             score                = -quiesce<N>(ss + 1, -beta, -alpha);
@@ -595,6 +635,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
         bestScore = hist_.pos().is_check() ? MATE_SCORE + ss->ply : bestScore;
     }
 
+    // Write to the TT.
     TtTag writeTag = TtTag::EXACT;
     if (bestScore <= originalAlpha) {
         writeTag = TtTag::UPPER;
@@ -605,6 +646,8 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
     const Score writeScore = score_to_tt(bestScore, ss->ply);
     if (!stopSearch_.load()) {
+        // We write to the TT at depth 0 since functionally a quiescence search node is the same as
+        // a leaf node.
         tt_.write(hist_.pos(), bestMove, writeScore, 0, writeTag);
     }
 
