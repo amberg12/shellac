@@ -61,18 +61,18 @@ template <MoveType MOVE_TYPE>
 MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
                               QuietHistory& qHist)
 {
-    enum Bases : Score
+    enum Bases : int
     {
-        TT_MOVE   = 10'000,
-        CAPTURE   = 2'000,
-        PROMOTION = CAPTURE,
+        TT_MOVE   = 900'000'000,
+        CAPTURE   = 800'000'000,
+        PROMOTION = 700'000'000,
     };
 
     MovePicker mp;
     mp.pos_ = &pos;
 
     Move* end = generate_moves<MOVE_TYPE>(mp.moves_, pos);
-    mp.size_ = end - mp.moves_;
+    mp.size_  = end - mp.moves_;
 
     for (size_t i = 0; i < mp.size_; ++i) {
         Move move = mp.moves_[i];
@@ -87,7 +87,9 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
                 move.is_en_passant() ? PieceType::PAWN : type_of(pos.piece_at(move.dst()));
             const PieceType attacker = type_of(pos.piece_at(move.src()));
 
-            mp.scores_[i] = evaluate_piece(victim) - evaluate_piece(attacker) + CAPTURE;
+            // Victim should be weighted higher than attackers.
+            mp.scores_[i] = 20 * static_cast<int>(evaluate_piece(victim)) -
+                static_cast<int>(evaluate_piece(attacker)) + CAPTURE;
             continue;
         }
 
