@@ -42,18 +42,19 @@ public:
 
 private:
     Move            moves_[MAX_LEGAL_MOVES]{};
-    Score           scores_[MAX_LEGAL_MOVES]{};
+    int             scores_[MAX_LEGAL_MOVES]{};
     size_t          currentMove_{0};
     const Position* pos_{};
-    Move*           end_{};
-    Move*           iter_{moves_};
+    size_t          size_{};
+    size_t          iter_{0};
 };
 
 template <MoveType MOVE_TYPE>
 MovePicker::MovePicker(const Position& pos)
 {
-    pos_ = &pos;
-    end_ = generate_moves<MOVE_TYPE>(moves_, pos);
+    pos_       = &pos;
+    Move* end_ = generate_moves<MOVE_TYPE>(moves_, pos);
+    size_      = end_ - moves_;
 }
 
 template <MoveType MOVE_TYPE>
@@ -70,9 +71,10 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
     MovePicker mp;
     mp.pos_ = &pos;
 
-    mp.end_ = generate_moves<MOVE_TYPE>(mp.moves_, pos);
+    Move* end = generate_moves<MOVE_TYPE>(mp.moves_, pos);
+    mp.size_ = end - mp.moves_;
 
-    for (size_t i = 0; i < mp.end_ - mp.moves_; ++i) {
+    for (size_t i = 0; i < mp.size_; ++i) {
         Move move = mp.moves_[i];
 
         if (move == ttMove) {
@@ -94,7 +96,8 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
 
             if (promoteTo == PieceType::QUEEN) {
                 mp.scores_[i] = QUEEN_SCORE - PAWN_SCORE + PROMOTION;
-            } else {
+            }
+            else {
                 // We assume underpromotion is probably not the right choice.
                 // If underpromotion is good then it is probably best to promote to a knight.
                 mp.scores_[i] = -evaluate_piece(promoteTo);
