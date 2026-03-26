@@ -482,9 +482,10 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         // Handle fail highs.
         if (score >= beta) {
-            // If a quiet move if a fail high we should update it in the history so we favor
-            // searching similar moves in the future.
+            // If a quiet move if a fail high we should update quiet heuristics like history and
+            // killers so it is favoured.
             if (isQuiet) {
+                ss->killer = move;
                 quietHistory_.write(hist_.pos(), move, depth * depth);
 
                 // Likewise, we should apply a "malus" to moves that did not manage to fail high.
