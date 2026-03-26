@@ -5,9 +5,10 @@
  - Move ordering
    1. TT move
    2. Loud moves ordered by MVV-LVA
-   3. Promotions.
-   4. Quiet moves ordered by history.
-   5. Underpromotions.
+   3. One killer move
+   4. Promotions.
+   5. Quiet moves ordered by history.
+   6. Underpromotions.
  - Transposition table
  - PV search
  - Reverse futility pruning.

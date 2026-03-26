@@ -21,11 +21,9 @@
 
 #include "history.h"
 #include "movegen.h"
+#include "search.h"
 
 namespace shellac {
-
-struct SearchStack;
-
 class MovePicker
 {
 public:
@@ -66,6 +64,7 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
         TT_MOVE   = 900'000'000,
         CAPTURE   = 800'000'000,
         PROMOTION = 700'000'000,
+        KILLER    = 600'000'000,
     };
 
     MovePicker mp;
@@ -104,6 +103,11 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
                 // If underpromotion is good then it is probably best to promote to a knight.
                 mp.scores_[i] = -evaluate_piece(promoteTo);
             }
+            continue;
+        }
+
+        if (move == ss->killer) {
+            mp.scores_[i] = KILLER;
             continue;
         }
 

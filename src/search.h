@@ -43,6 +43,7 @@ struct SearchStack
     bool              isNmpVerification{false};
     std::vector<Move> pv;
     Score             staticEval{NO_SCORE};
+    Move              killer{};
 };
 
 struct SearchReportData
