@@ -77,6 +77,9 @@ std::array<MagicEntry, 64> bishopMagics;
 std::array<std::vector<Bitboard>, 64> rookMoves;
 std::array<std::vector<Bitboard>, 64> bishopMoves;
 
+Bitboard lines[64][64]{};
+Bitboard betweens[64][64]{};
+
 enum Slider
 {
     ROOK,
@@ -280,6 +283,31 @@ void init_magics()
         bishopMagics[i]       = bEntry;
         bishopMoves[i]        = std::move(bTable);
     }
+
+    // lines
+
+    for (int i = 0; i < 64; ++i) {
+        for (int j = 0; j < 64; ++j) {
+            if (i == j
+                || (!is_diagonal_to(Square(i), Square(j))
+                && !is_orthogonal_to(Square(i), Square(j)))) {
+                continue;
+            }
+
+            lines[i][j] = Bitboard::runtime_generate_line(Square(i), Square(j));
+            betweens[i][j] = Bitboard::runtime_generate_between(Square(i), Square(j));
+        }
+    }
+}
+
+Bitboard Bitboard::generate_between(Square src, Square dst)
+{
+    return betweens[underlying(src)][underlying(dst)];
+}
+
+Bitboard Bitboard::generate_line(Square src, Square dst)
+{
+    return lines[underlying(src)][underlying(dst)];
 }
 
 template <>
