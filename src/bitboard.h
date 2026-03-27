@@ -44,7 +44,10 @@ public:
         return Bitboard(~0ULL);
     }
 
-    static constexpr Bitboard generate_between(const Square src, const Square dst)
+    static Bitboard generate_between(Square src, Square dst);
+    static Bitboard generate_line(Square src, Square dst);
+
+    static constexpr Bitboard runtime_generate_between(const Square src, const Square dst)
     {
         assert(is_diagonal_to(src, dst) || is_orthogonal_to(src, dst));
 
@@ -68,7 +71,7 @@ public:
         return out;
     }
 
-    static constexpr Bitboard generate_line(const Square src, const Square dst)
+    static constexpr Bitboard runtime_generate_line(const Square src, const Square dst)
     {
         assert(is_diagonal_to(src, dst) || is_orthogonal_to(src, dst));
 
