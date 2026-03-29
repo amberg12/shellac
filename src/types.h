@@ -649,6 +649,13 @@ constexpr Score evaluate_piece(const PieceType piece)
     }
 }
 
+enum class Bounds
+{
+    UPPER,
+    LOWER,
+    EXACT,
+};
+
 } // namespace shellac
 
 #endif // SHELLAC_TYPES_H
