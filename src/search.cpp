@@ -224,18 +224,49 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     // Sometimes we try to make a null move, so we load a move in.
     bestMove_ = MovePicker::create(hist_.pos(), Move{}, searchStackRoot, quietHistory_).next_move();
 
+    Score score{};
     for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
         reportData_ = SearchReportData{};
+        auto pv     = reportData_.pv;
 
-        Score score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
+        if (depth <= 5 || is_mate_score(score)) {
+            score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
+        }
+        else {
+            Score  delta = 8 + score / 64;
+            Score  alpha = score - delta;
+            Score  beta  = score + delta;
+            Bounds bound{};
+            do {
+                score = search<NodeType::ROOT>(depth, searchStackRoot, alpha, beta);
+
+                bound = stopSearch_.load() ? Bounds::EXACT
+                    : score >= beta        ? Bounds::LOWER
+                    : score <= alpha       ? Bounds::UPPER
+                                           : Bounds::EXACT;
+
+                if (bound == Bounds::UPPER) {
+                    beta  = (alpha + beta) / 2;
+                    alpha = score - delta;
+                }
+                else if (bound == Bounds::LOWER) {
+                    beta = score + delta;
+                }
+
+                delta *= 2;
+            }
+            while (bound != Bounds::EXACT);
+        }
 
         if (stopSearch_.load()) {
             break;
         }
 
-        bool isCorruptPv = stopSearch_.load();
-
-        reportData_.pv       = isCorruptPv ? std::vector<Move>{} : searchStackRoot->pv;
+        if (!reportData_.pv.empty()) {
+            reportData_.pv = bestMove_ == reportData_.pv[0] ? reportData_.pv : pv;
+        } else {
+            reportData_.pv = {};
+        }
         reportData_.nodes    = timeManager_->nodes_searched();
         reportData_.selDepth = std::max(reportData_.depth, reportData_.selDepth);
         reportData_.timeMs   = timeManager_->time_elapsed();
@@ -313,6 +344,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         if constexpr (NODE_TYPE == NodeType::ROOT) {
             if (bestMove_.is_null()) {
                 bestMove_ = ttMove;
+                ss->pv.clear();
+                ss->pv[0] = bestMove_;
             }
         }
         else {
@@ -331,7 +364,6 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             }
         }
     }
-
 
     // We calculate the static eval and place it on the search stack. Placing it on the
     // search stack allows us to track improvement. Note that we cannot rely on evaluate() at all
@@ -391,7 +423,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     Move searchedQuiets[MAX_LEGAL_MOVES]{};
     int  searchedQuietCount = 0;
-    bool skipQuiets = false;
+    bool skipQuiets         = false;
 
     // Loop through all legal moves to search them.
     Move move;
@@ -462,7 +494,17 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         // Handle an improved score.
         if (score > bestScore) {
             bestScore = score;
-            bestMove  = move;
+        }
+
+        // Handle fail lows.
+        if (score > alpha) {
+            alpha = score;
+
+            bestMove = move;
+
+            if constexpr (IS_ROOT) {
+                bestMove_ = move;
+            }
 
             ss->pv.clear();
             ss->pv.push_back(move);
@@ -473,11 +515,6 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
                 ss->pv.push_back(m);
             }
-        }
-
-        // Handle fail lows.
-        if (score > alpha) {
-            alpha = score;
         }
 
         // Handle fail highs.
@@ -515,10 +552,6 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     const Score writeScore = score_to_tt(bestScore, ss->ply);
     if (!stopSearch_.load()) {
         tt_.write(hist_.pos(), bestMove, writeScore, depth, writeTag);
-    }
-
-    if constexpr (NODE_TYPE == NodeType::ROOT) {
-        bestMove_ = bestMove;
     }
 
     return bestScore;
