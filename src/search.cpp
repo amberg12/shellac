@@ -248,9 +248,11 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
                 if (bound == Bounds::UPPER) {
                     beta  = (alpha + beta) / 2;
                     alpha = score - delta;
+                    alpha = std::clamp(alpha, NEG_INF, POS_INF);
                 }
                 else if (bound == Bounds::LOWER) {
                     beta = score + delta;
+                    beta = std::clamp(beta, NEG_INF, POS_INF);
                 }
 
                 delta *= 2;
