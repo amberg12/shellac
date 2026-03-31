@@ -449,6 +449,13 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         // Quiet move pruning.
         // In some situations it is extremely unlikely that a quiet move will improve eval.
         if (!IS_ROOT && !is_mate_score(bestScore)) {
+            // LMP
+            // If we are searching late and close to a leaf, we do not need to bother searching late
+            // quiet moves.
+            if (!hist_.pos().is_check() && searchedMoves >= 5 + 2 * depth * depth) {
+                skipQuiets = true;
+            }
+
             // Futility pruning.
             // If the static eval is such that only loud moves could improve alpha we stop bothering
             // with quiet moves.

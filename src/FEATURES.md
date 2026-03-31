@@ -19,6 +19,7 @@
  - Late move reduction
    - Less reduction when captures.
  - Futility pruning.
+ - Late Move Pruning.
 
 # Evaluation features:
  - Material Count
