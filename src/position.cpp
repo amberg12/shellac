@@ -380,7 +380,7 @@ bool Position::is_threefold() const
 
 bool Position::is_fifty_move() const
 {
-    return fiftyMoveRule_ >= 50;
+    return fiftyMoveRule_ >= 100;
 }
 
 bool Position::is_check() const
