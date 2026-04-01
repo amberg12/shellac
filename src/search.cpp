@@ -226,6 +226,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
 
     Score score{};
     for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
+        rootDepth_  = depth;
         reportData_ = SearchReportData{};
         auto pv     = reportData_.pv;
 
@@ -266,7 +267,8 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
 
         if (!reportData_.pv.empty()) {
             reportData_.pv = bestMove_ == reportData_.pv[0] ? reportData_.pv : pv;
-        } else {
+        }
+        else {
             reportData_.pv = {};
         }
         reportData_.nodes    = timeManager_->nodes_searched();
@@ -373,6 +375,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     ss->staticEval = hist_.pos().is_check() ? NO_SCORE : evaluate(hist_.pos());
     bool improving = is_improving(ss);
 
+    bool inCheck = hist_.pos().is_check();
+
     // Pruning. It is incorrect to do so in check.
     if (!hist_.pos().is_check()) {
         // Step 5.1: Reverse futility pruning. We prune if static eval is greater than beta plus
@@ -467,6 +471,17 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         // Make the move
         add_move(move, ss, false);
 
+        bool givesCheck = hist_.pos().is_check();
+        int  extensions = 0;
+
+        // We want to avoid extensions in certain positions.
+        if (!IS_ROOT && ss->ply < 2 * rootDepth_) {
+            // If we are giving check then a position is worth looking into.
+            if (givesCheck) {
+                extensions = 1;
+            }
+        }
+
         // Late move reductions.
         // We are confident enough in our move ordering to say that late moves are likely not very
         // good, so we search them at a reduced depth. If we find the moves to be actually good
@@ -485,17 +500,18 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             score = -search<NodeType::NON_PV>(depth - r - 1, ss + 1, -alpha - 1, -alpha);
 
             if (r >= 1 && score > alpha) {
-                score = -search<NodeType::NON_PV>(depth - 1, ss + 1, -alpha - 1, -alpha);
+                score =
+                    -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha);
             }
         }
         else if (!IS_PV || searchedMoves != 1) {
-            score = -search<NodeType::NON_PV>(depth - 1, ss + 1, -alpha - 1, -alpha);
+            score = -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha);
         }
 
         // If we are in a PV node, and we are either searching the PV or a fail low, we must do a
         // full window search.
         if (IS_PV && (searchedMoves == 1 || score > alpha)) {
-            score = -search<NodeType::PV>(depth - 1, ss + 1, -beta, -alpha);
+            score = -search<NodeType::PV>(depth + extensions - 1, ss + 1, -beta, -alpha);
         }
 
         pop_move(ss);

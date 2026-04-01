@@ -149,6 +149,8 @@ private:
 
     SearchReportData reportData_{};
 
+    int rootDepth_{};
+
     std::atomic_bool stopSearch_{false};
 };
 
