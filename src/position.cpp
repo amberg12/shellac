@@ -390,12 +390,7 @@ bool Position::is_check() const
 
 bool Position::is_repetition_of(const Position& rhs) const
 {
-    const bool sideToMoveEq     = sideToMove_ == rhs.sideToMove_;
-    const bool enPassantEq      = enPassantSquare_ == rhs.enPassantSquare_;
-    const bool castlingRightsEq = castlingRights_ == rhs.castlingRights_;
-    const bool piecesEq         = mailBox_ == rhs.mailBox_;
-
-    return sideToMoveEq && enPassantEq && castlingRightsEq && piecesEq;
+    return hash_ == rhs.hash_;
 }
 
 std::uint64_t Position::hash() const
