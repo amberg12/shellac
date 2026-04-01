@@ -491,9 +491,10 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             int r = 1 + std::log(depth) * std::log(searchedMoves) / 3;
 
             // Reducing reductions here appears to be required to make LMR gain.
-            if (hist_.pos().is_capture(move)) {
-                r -= 1;
-            }
+            r -= hist_.pos().is_capture(move);
+
+            // Reducing outside PV nodes appears to be a gainer.
+            r += !IS_PV;
 
             r = std::clamp(r, 0, depth - 1);
 
