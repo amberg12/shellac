@@ -393,6 +393,123 @@ bool Position::is_repetition_of(const Position& rhs) const
     return hash_ == rhs.hash_;
 }
 
+// Ported from Stash.
+bool Position::is_see_above(Move move, Score threshold) const
+{
+    constexpr std::array<Score, 7> SEE_SCORES{
+        0, 100, 300, 300, 500, 900, 0,
+    };
+
+    Square src = move.src();
+    Square dst = move.dst();
+
+    if (move.is_castle() || move.is_promotion() || move.is_en_passant()) {
+        return false;
+    }
+
+    Score nextValue = SEE_SCORES[underlying(type_of(piece_at(dst)))] - threshold;
+
+    if (nextValue < 0) {
+        return false;
+    }
+
+    nextValue = SEE_SCORES[underlying(type_of(piece_at(src)))] - nextValue;
+
+    if (nextValue <= 0) {
+        return true;
+    }
+
+    Bitboard occupancy = pieces();
+    occupancy ^= Bitboard(src) ^ Bitboard(dst);
+
+    Color    sideToMove = color_of(piece_at(src));
+    Bitboard attackers  = Position::attackers(dst, occupancy);
+    bool     result     = true;
+
+    while (true) {
+        sideToMove = ~sideToMove;
+        attackers &= occupancy;
+
+        Bitboard stmAttackers = attackers & pieces(sideToMove);
+        Bitboard weakestAttackers;
+
+        if (stmAttackers.is_empty()) {
+            break;
+        }
+
+        if (!(pinners_[underlying(~sideToMove)] & occupancy).is_empty()) {
+            stmAttackers &= ~kingBlockers_[underlying(sideToMove)];
+
+            if (stmAttackers.is_empty()) {
+                break;
+            }
+        }
+
+        result = !result;
+
+        if (!(weakestAttackers = stmAttackers & pieces(PieceType::PAWN)).is_empty()) {
+            nextValue = SEE_SCORES[underlying(PieceType::PAWN)] - nextValue;
+
+            if (nextValue < static_cast<Score>(result)) {
+                break;
+            }
+
+            occupancy.unset_square(weakestAttackers.lsb_square());
+            attackers |= generate_attacks<PieceType::BISHOP>(dst, occupancy) &
+                pieces(PieceType::BISHOP, PieceType::QUEEN);
+        }
+        else if (!(weakestAttackers = stmAttackers & pieces(PieceType::KNIGHT)).is_empty()) {
+            nextValue = SEE_SCORES[underlying(PieceType::KNIGHT)] - nextValue;
+
+            if (nextValue < static_cast<Score>(result)) {
+                break;
+            }
+
+            occupancy.unset_square(weakestAttackers.lsb_square());
+        }
+        else if (!(weakestAttackers = stmAttackers & pieces(PieceType::BISHOP)).is_empty()) {
+            nextValue = SEE_SCORES[underlying(PieceType::BISHOP)] - nextValue;
+
+            if (nextValue < static_cast<Score>(result)) {
+                break;
+            }
+
+            occupancy.unset_square(weakestAttackers.lsb_square());
+            attackers |= generate_attacks<PieceType::BISHOP>(dst, occupancy) &
+                pieces(PieceType::BISHOP, PieceType::QUEEN);
+        }
+        else if (!(weakestAttackers = stmAttackers & pieces(PieceType::ROOK)).is_empty()) {
+            nextValue = SEE_SCORES[underlying(PieceType::ROOK)] - nextValue;
+
+            if (nextValue < static_cast<Score>(result)) {
+                break;
+            }
+
+            occupancy.unset_square(weakestAttackers.lsb_square());
+            attackers |= generate_attacks<PieceType::ROOK>(dst, occupancy) &
+                pieces(PieceType::ROOK, PieceType::QUEEN);
+        }
+        else if (!(weakestAttackers = stmAttackers & pieces(PieceType::QUEEN)).is_empty()) {
+            nextValue = SEE_SCORES[underlying(PieceType::QUEEN)] - nextValue;
+
+            if (nextValue < static_cast<Score>(result)) {
+                break;
+            }
+
+            occupancy.unset_square(weakestAttackers.lsb_square());
+            attackers |= generate_attacks<PieceType::BISHOP>(dst, occupancy) &
+                pieces(PieceType::BISHOP, PieceType::QUEEN);
+            attackers |= generate_attacks<PieceType::ROOK>(dst, occupancy) &
+                pieces(PieceType::ROOK, PieceType::QUEEN);
+        }
+        else {
+            return !(attackers & ~pieces(sideToMove)).is_empty() ? !result : result;
+        }
+    }
+
+    return result;
+}
+
 std::uint64_t Position::hash() const
 {
     return hash_;
@@ -519,7 +636,6 @@ void Position::apply_move(Move move)
     assert(color_of(movingPiece) == us);
     assert(capturedPiece == Piece::NONE || color_of(capturedPiece) == them);
 
-    const Square previousEnPassantSquare = enPassantSquare_;
     clear_en_passant();
 
     if (move.is_castle()) {
@@ -655,6 +771,8 @@ void Position::generate_check_info()
 
             if (piecesBetween == 1 && ourPiecesBetween == 1) {
                 pinRays_ |= pinRay;
+                kingBlockers_[underlying(us)] |= pinRay;
+                pinners_[underlying(them)] |= Bitboard(src);
             }
         }
     }
@@ -675,6 +793,8 @@ void Position::generate_check_info()
 
             if (piecesBetween == 1 && ourPiecesBetween == 1) {
                 pinRays_ |= pinRay;
+                kingBlockers_[underlying(us)] |= pinRay;
+                pinners_[underlying(them)] |= Bitboard(src);
             }
         }
     }
@@ -695,9 +815,51 @@ void Position::generate_check_info()
 
             if (piecesBetween == 1 && ourPiecesBetween == 1) {
                 pinRays_ |= pinRay;
+                kingBlockers_[underlying(us)] |= pinRay;
+                pinners_[underlying(them)] |= Bitboard(src);
             }
         }
     }
+
+    for (const Square src : pieces(us, PieceType::BISHOP, PieceType::QUEEN)) {
+        if (!is_diagonal_to(src, king_square(them))) {
+            continue;
+        }
+
+        auto pinRay = Bitboard::generate_between(src, king_square(them));
+
+        if ((pinRay & pieces()).pop_count() == 1) {
+            kingBlockers_[underlying(them)] |= pinRay;
+            pinners_[underlying(us)] |= Bitboard(src);
+        }
+    }
+
+    for (const Square src : pieces(us, PieceType::BISHOP, PieceType::QUEEN)) {
+        if (!is_diagonal_to(src, king_square(them))) {
+            continue;
+        }
+
+        auto pinRay = Bitboard::generate_between(src, king_square(them));
+
+        if ((pinRay & pieces()).pop_count() == 1) {
+            kingBlockers_[underlying(them)] |= pinRay;
+            pinners_[underlying(us)] |= Bitboard(src);
+        }
+    }
+}
+
+Bitboard Position::attackers(Square square, Bitboard occupancy) const
+{
+    return (generate_attacks<PieceType::ROOK>(square, occupancy) &
+            pieces(PieceType::ROOK, PieceType::QUEEN)) |
+        (generate_attacks<PieceType::BISHOP>(square, occupancy) &
+         pieces(PieceType::BISHOP, PieceType::QUEEN)) |
+        (generate_pawn_attacks(Color::BLACK, square, occupancy) &
+         pieces(Color::WHITE, PieceType::PAWN)) |
+        (generate_pawn_attacks(Color::WHITE, square, occupancy) &
+         pieces(Color::BLACK, PieceType::PAWN)) |
+        (generate_attacks<PieceType::KNIGHT>(square, occupancy) & pieces(PieceType::KNIGHT)) |
+        (generate_attacks<PieceType::KING>(square, occupancy) & pieces(PieceType::KING));
 }
 
 GameHistory::GameHistory(const std::string& fen, const std::vector<std::string>& moves)

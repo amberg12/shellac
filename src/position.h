@@ -71,6 +71,8 @@ public:
 
     [[nodiscard]] bool is_repetition_of(const Position& rhs) const;
 
+    [[nodiscard]] bool is_see_above(Move move, Score threshold) const;
+
     [[nodiscard]] std::uint64_t hash() const;
 
 private:
@@ -101,6 +103,8 @@ private:
 
     void generate_check_info();
 
+    Bitboard attackers(Square square, Bitboard occupancy) const;
+
     std::array<Piece, 64>   mailBox_{};
     std::uint8_t            castlingRights_{};
     Color                   sideToMove_{};
@@ -114,6 +118,9 @@ private:
     Bitboard pinRays_;
     Bitboard blockers_;
     int      kingAttackers_{};
+
+    Bitboard pinners_[2]{};
+    Bitboard kingBlockers_[2]{};
 
     std::uint64_t hash_;
 };

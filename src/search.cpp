@@ -660,6 +660,11 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
         searchedMoves++;
 
+        // If an exchange sequence is bad, then we don't bother searching the move.
+        if (!hist_.pos().is_check() && !hist_.pos().is_see_above(move, -150)) {
+            continue;
+        }
+
         add_move(move, ss, true);
 
         Score score;
