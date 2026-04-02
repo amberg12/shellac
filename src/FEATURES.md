@@ -18,8 +18,12 @@
    - Butterfly tables for quiet moves including maluses
  - Late move reduction
    - Less reduction when captures.
- - Futility pruning.
- - Late Move Pruning.
+ - Move loop pruning (Main search)
+   - Futility pruning.
+   - Late Move Pruning.
+   - SEE Pruning
+ - Move loop pruning (Q-Search)
+   - SEE Pruning
 
 # Evaluation features:
  - Material Count

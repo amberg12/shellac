@@ -466,6 +466,11 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             if (!hist_.pos().is_check() && depth <= 3 && ss->staticEval + 100 * depth <= alpha) {
                 skipQuiets = true;
             }
+
+            // If a capture fails a SEE, we prune it.
+            if (hist_.pos().is_capture(move) && !hist_.pos().is_see_above(move, -80 * depth)) {
+                continue;
+            }
         }
 
         // Make the move
