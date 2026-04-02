@@ -404,7 +404,7 @@ bool Position::is_see_above(Move move, Score threshold) const
     Square dst = move.dst();
 
     if (move.is_castle() || move.is_promotion() || move.is_en_passant()) {
-        return false;
+        return true;
     }
 
     Score nextValue = SEE_SCORES[underlying(type_of(piece_at(dst)))] - threshold;
