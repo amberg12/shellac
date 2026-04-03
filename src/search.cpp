@@ -231,7 +231,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
         auto pv     = reportData_.pv;
 
         if (depth <= 5 || is_mate_score(score)) {
-            score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF);
+            score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF, false);
         }
         else {
             Score  delta = 8 + score / 64;
@@ -239,7 +239,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
             Score  beta  = score + delta;
             Bounds bound{};
             do {
-                score = search<NodeType::ROOT>(depth, searchStackRoot, alpha, beta);
+                score = search<NodeType::ROOT>(depth, searchStackRoot, alpha, beta, false);
 
                 bound = stopSearch_.load() ? Bounds::EXACT
                     : score >= beta        ? Bounds::LOWER
@@ -308,7 +308,7 @@ void Searcher::set_hash_size(size_t mb)
 }
 
 template <NodeType NODE_TYPE>
-Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta)
+Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta, bool cutNode)
 {
     constexpr bool IS_PV   = NODE_TYPE == NodeType::PV || NODE_TYPE == NodeType::ROOT;
     constexpr bool IS_ROOT = NODE_TYPE == NodeType::ROOT;
@@ -398,7 +398,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         if (nmpIsOkNode && depth >= 3 && ss->staticEval >= beta + 10 * depth) {
             constexpr int r = 4;
             add_move(Move{}, ss, false);
-            Score nullMoveScore = -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1));
+            Score nullMoveScore = -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1), !cutNode);
             pop_move(ss);
 
             if (nullMoveScore >= beta) {
@@ -409,7 +409,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
                     (ss + i)->isNmpVerification = true;
                 }
 
-                nullMoveScore = search<NodeType::NON_PV>(depth - r, ss, beta - 1, beta);
+                nullMoveScore = search<NodeType::NON_PV>(depth - r, ss, beta - 1, beta, false);
 
                 for (int i = 0; i < pliesToSkip; ++i) {
                     (ss + i)->isNmpVerification = false;
@@ -503,23 +503,26 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             // Reducing outside PV nodes appears to be a gainer.
             r += !IS_PV;
 
+            // Reduce in expected cut nodes
+            r += cutNode;
+
             r = std::clamp(r, 0, depth - 1);
 
-            score = -search<NodeType::NON_PV>(depth - r - 1, ss + 1, -alpha - 1, -alpha);
+            score = -search<NodeType::NON_PV>(depth - r - 1, ss + 1, -alpha - 1, -alpha, true);
 
             if (r >= 1 && score > alpha) {
                 score =
-                    -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha);
+                    -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha, !cutNode);
             }
         }
         else if (!IS_PV || searchedMoves != 1) {
-            score = -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha);
+            score = -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha, !cutNode);
         }
 
         // If we are in a PV node, and we are either searching the PV or a fail low, we must do a
         // full window search.
         if (IS_PV && (searchedMoves == 1 || score > alpha)) {
-            score = -search<NodeType::PV>(depth + extensions - 1, ss + 1, -beta, -alpha);
+            score = -search<NodeType::PV>(depth + extensions - 1, ss + 1, -beta, -alpha, false);
         }
 
         pop_move(ss);
