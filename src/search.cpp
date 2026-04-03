@@ -467,8 +467,10 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
                 skipQuiets = true;
             }
 
-            // If a capture fails a SEE, we prune it.
-            if (hist_.pos().is_capture(move) && !hist_.pos().is_see_above(move, -80 * depth)) {
+            // If a move fails SEE, then we should prune it. We use different margins for quiets and
+            // loud moves, mostly because other engines do so it seems reasonable to tune later on.
+            Score seeMargin = isQuiet ? -70 * depth : -80 * depth;
+            if (!hist_.pos().is_see_above(move, seeMargin)) {
                 continue;
             }
         }
