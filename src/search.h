@@ -131,7 +131,7 @@ public:
 
 private:
     template <NodeType NODE_TYPE>
-    Score search(int depth, SearchStack* ss, Score alpha, Score beta);
+    Score search(int depth, SearchStack* ss, Score alpha, Score beta, bool cutNode);
     template <NodeType NODE_TYPE>
     Score quiesce(SearchStack* ss, Score alpha, Score beta);
 
