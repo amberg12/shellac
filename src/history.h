@@ -18,25 +18,63 @@
 
 #ifndef SHELLAC_HISTORY_H
 #define SHELLAC_HISTORY_H
+#include <algorithm>
+
 #include "position.h"
 #include "types.h"
 
 namespace shellac {
 
-class QuietHistory
+constexpr Score HISTORY_MAX = 1500;
+
+inline void update_with_gravity(Score* score, Score base, Score bonus)
+{
+    bonus = std::clamp(bonus, Score(-HISTORY_MAX), HISTORY_MAX);
+    *score += bonus - base * std::abs(bonus) / HISTORY_MAX;
+}
+
+template <typename T>
+class ButterflyTable
 {
 public:
-    QuietHistory() = default;
+    ButterflyTable() = default;
 
-    [[nodiscard]] Score read(const Position& pos, Move move) const;
-    void                write(const Position& pos, Move move, Score bonus);
+    T* read(const Position& pos, Move move)
+    {
+        size_t colorIdx = underlying(pos.side_to_move());
+        size_t srcIdx   = underlying(move.src());
+        size_t dstIdx   = underlying(move.dst());
+
+        return &butterflyTable_[colorIdx][srcIdx][dstIdx];
+    }
+
+    const T* read(const Position& pos, Move move) const
+    {
+        size_t colorIdx = underlying(pos.side_to_move());
+        size_t srcIdx   = underlying(move.src());
+        size_t dstIdx   = underlying(move.dst());
+
+        return &butterflyTable_[colorIdx][srcIdx][dstIdx];
+    }
 
 private:
-    Score& get_butterfly_score(const Position& pos, Move move);
-    const Score& get_butterfly_score(const Position& pos, Move move) const;
-
-    Score butterflyTable_[2][64][64]{};
+    T butterflyTable_[2][64][64]{};
 };
+
+using ButterflyHistory = ButterflyTable<Score>;
+
+inline void update_butterfly_history(ButterflyHistory& butterflyTable, const Position& pos,
+                                     Move move, Score bonus)
+{
+    Score* entry = butterflyTable.read(pos, move);
+    update_with_gravity(entry, *entry, bonus);
+}
+
+inline Score read_butterfly_history(const ButterflyHistory& butterflyTable, const Position& pos,
+                                    Move move)
+{
+    return *butterflyTable.read(pos, move);
+}
 
 } // namespace shellac
 

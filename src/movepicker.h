@@ -34,7 +34,7 @@ public:
 
     template <MoveType MOVE_TYPE = MoveType::NORMAL>
     static MovePicker create(const Position& pos, Move ttMove, SearchStack* ss,
-                             QuietHistory& qHist);
+                             const ButterflyHistory& butterflyHistory);
 
     Move next_move();
 
@@ -57,7 +57,7 @@ MovePicker::MovePicker(const Position& pos)
 
 template <MoveType MOVE_TYPE>
 MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
-                              QuietHistory& qHist)
+                              const ButterflyHistory& butterflyHistory)
 {
     enum Bases : int
     {
@@ -111,7 +111,7 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
             continue;
         }
 
-        mp.scores_[i] = qHist.read(pos, move);
+        mp.scores_[i] = read_butterfly_history(butterflyHistory, pos, move);
     }
 
     return mp;
