@@ -32,6 +32,9 @@ public:
     void                write(const Position& pos, Move move, Score bonus);
 
 private:
+    Score& get_butterfly_score(const Position& pos, Move move);
+    const Score& get_butterfly_score(const Position& pos, Move move) const;
+
     Score butterflyTable_[2][64][64]{};
 };
 
