@@ -145,7 +145,7 @@ private:
     std::vector<Move> allowedRootMoves_{};
 
     TranspositionTable tt_{16};
-    QuietHistory       quietHistory_{};
+    ButterflyHistory   butterflyHistory_;
 
     SearchReportData reportData_{};
 

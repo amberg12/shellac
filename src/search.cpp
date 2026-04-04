@@ -199,7 +199,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     hist_.begin_search();
     bestMove_ = Move{};
     stopSearch_.store(false);
-    quietHistory_ = QuietHistory{};
+    butterflyHistory_ = ButterflyHistory{};
 
     tt_.begin_new_search();
 
@@ -222,7 +222,8 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     }
 
     // Sometimes we try to make a null move, so we load a move in.
-    bestMove_ = MovePicker::create(hist_.pos(), Move{}, searchStackRoot, quietHistory_).next_move();
+    bestMove_ =
+        MovePicker::create(hist_.pos(), Move{}, searchStackRoot, butterflyHistory_).next_move();
 
     Score score{};
     for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
@@ -398,7 +399,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         if (nmpIsOkNode && depth >= 3 && ss->staticEval >= beta + 10 * depth) {
             constexpr int r = 4;
             add_move(Move{}, ss, false);
-            Score nullMoveScore = -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1), !cutNode);
+            Score nullMoveScore =
+                -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1), !cutNode);
             pop_move(ss);
 
             if (nullMoveScore >= beta) {
@@ -422,7 +424,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         }
     }
 
-    auto  mp            = MovePicker::create(hist_.pos(), ttMove, ss, quietHistory_);
+    auto  mp            = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_);
     int   searchedMoves = 0;
     Score bestScore     = NEG_INF;
     Move  bestMove      = Move{};
@@ -511,12 +513,13 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             score = -search<NodeType::NON_PV>(depth - r - 1, ss + 1, -alpha - 1, -alpha, true);
 
             if (r >= 1 && score > alpha) {
-                score =
-                    -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha, !cutNode);
+                score = -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1,
+                                                  -alpha, !cutNode);
             }
         }
         else if (!IS_PV || searchedMoves != 1) {
-            score = -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha, !cutNode);
+            score = -search<NodeType::NON_PV>(depth + extensions - 1, ss + 1, -alpha - 1, -alpha,
+                                              !cutNode);
         }
 
         // If we are in a PV node, and we are either searching the PV or a fail low, we must do a
@@ -559,13 +562,14 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             // killers so it is favoured.
             if (isQuiet) {
                 ss->killer = move;
-                quietHistory_.write(hist_.pos(), move, depth * depth);
+                update_butterfly_history(butterflyHistory_, hist_.pos(), move, depth * depth);
 
                 // Likewise, we should apply a "malus" to moves that did not manage to fail high.
                 for (int i = 0; i < searchedQuietCount - 1; ++i) {
                     // The "correct" formula is -depth * depth, but people on Discord have
                     // suggested this as working better in weaker engines.
-                    quietHistory_.write(hist_.pos(), searchedQuiets[i], -depth);
+                    update_butterfly_history(butterflyHistory_, hist_.pos(), searchedQuiets[i],
+                                             -depth);
                 }
             }
 
@@ -659,10 +663,10 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
     // If we are in check, we should also generate evasions (so all legal moves in the position).
     MovePicker mp; // default-construct first
     if (hist_.pos().is_check()) {
-        mp = MovePicker::create(hist_.pos(), ttMove, ss, quietHistory_);
+        mp = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_);
     }
     else {
-        mp = MovePicker::create<MoveType::CAPTURES>(hist_.pos(), ttMove, ss, quietHistory_);
+        mp = MovePicker::create<MoveType::CAPTURES>(hist_.pos(), ttMove, ss, butterflyHistory_);
     }
 
     Move move;

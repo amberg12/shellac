@@ -21,43 +21,6 @@
 #include <algorithm>
 
 namespace shellac {
-namespace {
-void apply_gravity(Score& score, Score bonus)
-{
-    constexpr Score HISTORY_MAX = 1500;
 
-    Score clampedBonus = std::clamp(bonus, Score(-HISTORY_MAX), Score(HISTORY_MAX));
-    score += clampedBonus - score * std::abs(clampedBonus) / HISTORY_MAX;
-}
-}
-
-Score QuietHistory::read(const Position& pos, const Move move) const
-{
-    return get_butterfly_score(pos, move);
-}
-
-void QuietHistory::write(const Position& pos, const Move move, const Score bonus)
-{
-    Score& butterflyScore = get_butterfly_score(pos, move);
-    apply_gravity(butterflyScore, bonus);
-}
-
-Score& QuietHistory::get_butterfly_score(const Position& pos, Move move)
-{
-    const size_t colorIndex = underlying(pos.side_to_move());
-    const size_t srcIndex   = underlying(move.src());
-    const size_t dstIndex   = underlying(move.dst());
-
-    return butterflyTable_[colorIndex][srcIndex][dstIndex];
-}
-
-const Score& QuietHistory::get_butterfly_score(const Position& pos, Move move) const
-{
-    const size_t colorIndex = underlying(pos.side_to_move());
-    const size_t srcIndex   = underlying(move.src());
-    const size_t dstIndex   = underlying(move.dst());
-
-    return butterflyTable_[colorIndex][srcIndex][dstIndex];
-}
 
 } // namespace shellac
