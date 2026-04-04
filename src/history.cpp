@@ -21,10 +21,28 @@
 #include <algorithm>
 
 namespace shellac {
-constexpr Score HISTORY_MAX = 1500;
-constexpr Score HISTORY_MIN = -HISTORY_MAX;
+namespace {
+void apply_gravity(Score& score, Score bonus)
+{
+    constexpr Score HISTORY_MAX = 1500;
+
+    Score clampedBonus = std::clamp(bonus, Score(-HISTORY_MAX), Score(HISTORY_MAX));
+    score += clampedBonus - score * std::abs(clampedBonus) / HISTORY_MAX;
+}
+}
 
 Score QuietHistory::read(const Position& pos, const Move move) const
+{
+    return get_butterfly_score(pos, move);
+}
+
+void QuietHistory::write(const Position& pos, const Move move, const Score bonus)
+{
+    Score& butterflyScore = get_butterfly_score(pos, move);
+    apply_gravity(butterflyScore, bonus);
+}
+
+Score& QuietHistory::get_butterfly_score(const Position& pos, Move move)
 {
     const size_t colorIndex = underlying(pos.side_to_move());
     const size_t srcIndex   = underlying(move.src());
@@ -33,16 +51,13 @@ Score QuietHistory::read(const Position& pos, const Move move) const
     return butterflyTable_[colorIndex][srcIndex][dstIndex];
 }
 
-void QuietHistory::write(const Position& pos, const Move move, const Score bonus)
+const Score& QuietHistory::get_butterfly_score(const Position& pos, Move move) const
 {
     const size_t colorIndex = underlying(pos.side_to_move());
     const size_t srcIndex   = underlying(move.src());
     const size_t dstIndex   = underlying(move.dst());
 
-    const Score clampedBonus = std::clamp(bonus, HISTORY_MIN, HISTORY_MAX);
-
-    butterflyTable_[colorIndex][srcIndex][dstIndex] += clampedBonus -
-        butterflyTable_[colorIndex][srcIndex][dstIndex] * std::abs(clampedBonus) / HISTORY_MAX;
+    return butterflyTable_[colorIndex][srcIndex][dstIndex];
 }
 
 } // namespace shellac
