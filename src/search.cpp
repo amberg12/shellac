@@ -530,6 +530,11 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         pop_move(ss);
 
+        // Do not update TT or bounds if we are out of time.
+        if (stopSearch_.load()) {
+            return 0;
+        }
+
         // Handle an improved score.
         if (score > bestScore) {
             bestScore = score;
@@ -695,6 +700,10 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
         }
 
         pop_move(ss);
+
+        if (stopSearch_.load()) {
+            return 0;
+        }
 
         if (score > bestScore) {
             bestScore = score;
