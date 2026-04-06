@@ -378,10 +378,9 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     bool inCheck = hist_.pos().is_check();
 
-    // Pruning. It is incorrect to do so in check.
-    if (!hist_.pos().is_check()) {
-        // Step 5.1: Reverse futility pruning. We prune if static eval is greater than beta plus
-        // some margin.
+    // Pruning. It is incorrect to do so in check, or in a PV node.
+    if (!inCheck && !IS_ROOT && !IS_PV) {
+        // Reverse futility pruning. We prune if static eval is greater than beta plus some margin.
 
         // Making the margin more aggressive when we are improving gains ~20 ELO.
         const Score rfpMargin = 150 * depth - 75 * improving;
@@ -394,7 +393,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         // Null move pruning.
         // If the evaluation of passing a search is better than beta (plus some margin), a beta
         // cutoff is likely to occur so we can prune the node.
-        const bool nmpIsOkNode = !IS_PV && !(ss - 1)->isNull && !ss->isNmpVerification;
+        const bool nmpIsOkNode = !(ss - 1)->isNull && !ss->isNmpVerification;
 
         if (nmpIsOkNode && depth >= 3 && ss->staticEval >= beta + 10 * depth) {
             constexpr int r = 4;
