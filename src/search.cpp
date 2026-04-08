@@ -329,7 +329,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     // If we have no depth left, evaluate the node. We must resolve any loud moves or checks as we
     // cannot trust the static eval in such positions.
     if (depth <= 0) {
-        return quiesce<NodeType::NON_PV>(ss, alpha, beta);
+        return quiesce<IS_PV ? NodeType::PV : NodeType::NON_PV>(ss, alpha, beta);
     }
 
     if (hist_.pos().is_fifty_move() || hist_.pos().is_threefold()) {
