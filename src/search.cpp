@@ -421,6 +421,15 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
                 }
             }
         }
+
+        // Razoring: if we are unlikely to raise alpha, we dive into a quiescent search and use that
+        // score if it does not raise alpha.
+        if (ss->staticEval + 150 * depth < alpha) {
+            Score rScore = quiesce<IS_PV ? NodeType::PV : NodeType::NON_PV>(ss, alpha, alpha + 1);
+            if (rScore < alpha) {
+                return rScore;
+            }
+        }
     }
 
     auto  mp            = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_);
