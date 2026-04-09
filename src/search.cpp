@@ -199,7 +199,6 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     hist_.begin_search();
     bestMove_ = Move{};
     stopSearch_.store(false);
-    butterflyHistory_ = ButterflyHistory{};
 
     tt_.begin_new_search();
 
@@ -295,6 +294,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
 void Searcher::new_game()
 {
     tt_.clear();
+    butterflyHistory_ = ButterflyHistory{};
 }
 
 void Searcher::stop_searching()
