@@ -834,8 +834,8 @@ void Position::generate_check_info()
         }
     }
 
-    for (const Square src : pieces(us, PieceType::BISHOP, PieceType::QUEEN)) {
-        if (!is_diagonal_to(src, king_square(them))) {
+    for (const Square src : pieces(us, PieceType::ROOK, PieceType::QUEEN)) {
+        if (!is_orthogonal_to(src, king_square(them))) {
             continue;
         }
 
