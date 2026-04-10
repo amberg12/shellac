@@ -30,6 +30,7 @@ class Position;
 
 enum class TtTag : std::uint8_t
 {
+    EMPTY = 0,
     EXACT,
     UPPER,
     LOWER,

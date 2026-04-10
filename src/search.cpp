@@ -345,7 +345,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     // Otherwise, we use the best move from when this node was previously searched as a hint in
     // the move ordering.
     auto [ttMove, ttScore, ttDepth, ttTag, ttAge] = tt_.read(hist_.pos());
-    if (!ttMove.is_null() && ttDepth >= depth) {
+    if (ttTag != TtTag::EMPTY && ttDepth >= depth) {
         if constexpr (NODE_TYPE == NodeType::ROOT) {
             if (bestMove_.is_null()) {
                 bestMove_ = ttMove;
@@ -632,7 +632,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
 
     // Probe the transposition table.
     auto [ttMove, ttScore, ttDepth, ttTag, _] = tt_.read(hist_.pos());
-    if (!ttMove.is_null()) {
+    if (ttTag != TtTag::EMPTY) {
         if constexpr (NODE_TYPE == NodeType::ROOT) {
             if (bestMove_.is_null()) {
                 bestMove_ = ttMove;
