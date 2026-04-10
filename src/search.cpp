@@ -224,11 +224,11 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     bestMove_ =
         MovePicker::create(hist_.pos(), Move{}, searchStackRoot, butterflyHistory_).next_move();
 
+    auto start = std::chrono::high_resolution_clock::now();
     Score score{};
     for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
         rootDepth_  = depth;
         reportData_ = SearchReportData{};
-        auto pv     = reportData_.pv;
 
         if (depth <= 5 || is_mate_score(score)) {
             score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF, false);
@@ -261,34 +261,28 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
             while (bound != Bounds::EXACT);
         }
 
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = end - start;
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+
+        reportData_.nps = static_cast<std::uint64_t>(timeManager_->nodes_searched()) * 1'000'000ULL / std::max(us, 1L);
+        reportData_.score = score;
+        reportData_.nodes = timeManager_->nodes_searched();
+        reportData_.pv = searchStackRoot->pv;
+        reportData_.depth = depth;
+        reportData_.timeMs = us / 1000;
+        reportData_.report();
+
         if (stopSearch_.load()) {
             break;
         }
-
-        if (!reportData_.pv.empty()) {
-            reportData_.pv = bestMove_ == reportData_.pv[0] ? reportData_.pv : pv;
-        }
-        else {
-            reportData_.pv = {};
-        }
-        reportData_.nodes    = timeManager_->nodes_searched();
-        reportData_.selDepth = std::max(reportData_.depth, reportData_.selDepth);
-        reportData_.timeMs   = timeManager_->time_elapsed();
-        reportData_.nps =
-            reportData_.timeMs > 0 ? (reportData_.nodes * 1000) / reportData_.timeMs : 0;
-        if (is_mate_score(score)) {
-            reportData_.mate   = true;
-            reportData_.mateIn = to_mate_moves(score);
-        }
-        else {
-            reportData_.score = score;
-        }
-        reportData_.report();
     }
 
     if (stopSearch_.load() == false) {
         stop_searching();
     }
+
+    std::cout << "bestmove " << to_string(bestMove_) << std::endl;
 }
 
 void Searcher::new_game()
@@ -300,7 +294,6 @@ void Searcher::new_game()
 void Searcher::stop_searching()
 {
     stopSearch_.store(true);
-    std::cout << "bestmove " << bestMove_ << '\n' << std::flush;
 }
 
 void Searcher::set_hash_size(size_t mb)
@@ -397,7 +390,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         if (nmpIsOkNode && depth >= 3 && ss->staticEval >= beta + 10 * depth) {
             constexpr int r = 4;
-            add_move(Move{}, ss, false);
+            add_move(Move{}, ss);
             Score nullMoveScore =
                 -search<NodeType::NON_PV>(depth - r, ss + 1, -beta, -(beta - 1), !cutNode);
             pop_move(ss);
@@ -486,7 +479,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         }
 
         // Make the move
-        add_move(move, ss, false);
+        add_move(move, ss);
 
         bool givesCheck = hist_.pos().is_check();
         int  extensions = 0;
@@ -692,7 +685,7 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
             continue;
         }
 
-        add_move(move, ss, true);
+        add_move(move, ss);
 
         Score score;
         // Search at a null window first .
@@ -750,19 +743,14 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
     return bestScore;
 }
 
-void Searcher::add_move(const Move move, SearchStack* ss, bool isSel)
+void Searcher::add_move(const Move move, SearchStack* ss)
 {
     hist_.add_move(move);
     ss->playedMove = move;
     ss->isNull     = move.is_null();
     (ss + 1)->pv.clear();
 
-    if (isSel) {
-        reportData_.selDepth = std::max(reportData_.selDepth, (ss + 1)->ply);
-    }
-    else {
-        reportData_.depth = std::max(reportData_.depth, (ss + 1)->ply);
-    }
+    reportData_.selDepth = std::max(reportData_.selDepth, (ss + 1)->ply);
 }
 
 void Searcher::pop_move(SearchStack* ss)
