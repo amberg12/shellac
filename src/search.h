@@ -135,7 +135,7 @@ private:
     template <NodeType NODE_TYPE>
     Score quiesce(SearchStack* ss, Score alpha, Score beta);
 
-    void add_move(Move move, SearchStack* ss, bool isSel);
+    void add_move(Move move, SearchStack* ss);
     void pop_move(SearchStack* ss);
 
     TimeManager* timeManager_ = nullptr;
