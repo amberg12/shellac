@@ -151,7 +151,7 @@ TimeManager::TimeManager(const SearchLimits& searchLimits, const Color sideToMov
         endTime_ = startTime_ + std::chrono::milliseconds(allocatedTime);
     }
     else {
-        endTime_ = startTime_ + std::chrono::seconds(10);
+        endTime_ = startTime_ + std::chrono::seconds(999999999);
     }
 }
 
@@ -226,7 +226,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
 
     auto start = std::chrono::high_resolution_clock::now();
     Score score{};
-    for (int depth = 1; depth < timeManager_->max_depth(); ++depth) {
+    for (int depth = 1; depth <= timeManager_->max_depth(); ++depth) {
         rootDepth_  = depth;
         reportData_ = SearchReportData{};
 
