@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 4.1)
 project(shellac)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git/HEAD")
     configure_file("${CMAKE_SOURCE_DIR}/.git/HEAD" "${CMAKE_BINARY_DIR}/git-head-hash" COPYONLY)
