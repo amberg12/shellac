@@ -47,6 +47,21 @@ constexpr const char* BuildIdentifier = BUILD_IDENTIFIER "-" CXX_COMPILER_NAME;
 constexpr const char* BuildIdentifier = "unknown-build";
 #endif
 
+using usize = std::size_t;
+using isize = std::ptrdiff_t;
+
+static_assert(sizeof(usize) == sizeof(isize));
+
+using u8  = std::uint8_t;
+using u16 = std::uint16_t;
+using u32 = std::uint32_t;
+using u64 = std::uint64_t;
+
+using i8  = std::int8_t;
+using i16 = std::int16_t;
+using i32 = std::int32_t;
+using i64 = std::int64_t;
+
 template <typename T, typename = std::enable_if_t<std::is_enum_v<T>>>
 constexpr std::underlying_type_t<T> underlying(T enumValue)
 {
@@ -54,19 +69,22 @@ constexpr std::underlying_type_t<T> underlying(T enumValue)
 }
 
 template <typename T>
-constexpr int signum(T x, const std::false_type is_signed) {
+constexpr int signum(T x, const std::false_type is_signed)
+{
     (void)is_signed;
     return T(0) < x;
 }
 
 template <typename T>
-constexpr int signum(T x, const std::true_type is_signed) {
+constexpr int signum(T x, const std::true_type is_signed)
+{
     (void)is_signed;
     return (T(0) < x) - (x < T(0));
 }
 
 template <typename T>
-constexpr int signum(T x) {
+constexpr int signum(T x)
+{
     return signum(x, std::is_signed<T>());
 }
 
