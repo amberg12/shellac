@@ -265,7 +265,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
         auto duration = end - start;
         auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
 
-        reportData_.nps = static_cast<std::uint64_t>(timeManager_->nodes_searched()) * 1'000'000ULL / std::max(us, 1L);
+        reportData_.nps = static_cast<std::uint64_t>(timeManager_->nodes_searched()) * 1'000'000ULL / std::max(std::uint64_t(us), std::uint64_t(1));
         reportData_.score = score;
         reportData_.nodes = timeManager_->nodes_searched();
         reportData_.pv = searchStackRoot->pv;
