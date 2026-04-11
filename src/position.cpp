@@ -672,7 +672,6 @@ void Position::apply_move(Move move)
     else {
         fiftyMoveRule_ = 0;
         if (move.is_en_passant()) {
-            assert(previousEnPassantSquare == dst);
             set_piece(dst, movingPiece);
             remove_piece(src);
 
