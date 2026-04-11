@@ -37,8 +37,10 @@ namespace shellac {
 #define CXX_COMPILER_NAME "unknown"
 #endif
 
+#define RELEASE
+
 #ifdef SHELLAC_RELEASE
-constexpr const char* BuildIdentifier = "2";
+constexpr const char* BuildIdentifier = "3";
 #elif defined(BUILD_IDENTIFIER)
 constexpr const char* BuildIdentifier = BUILD_IDENTIFIER "-" CXX_COMPILER_NAME;
 #else
