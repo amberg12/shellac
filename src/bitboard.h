@@ -112,12 +112,12 @@ public:
 
     [[nodiscard]] constexpr int pop_count() const
     {
-        return shellac::pop_count(bitboard_);
+        return std::popcount(bitboard_);
     }
 
     [[nodiscard]] constexpr int ctz() const
     {
-        return shellac::ctz(bitboard_);
+        return std::countr_zero(bitboard_);
     }
 
     [[nodiscard]] constexpr Bitboard lsb() const
