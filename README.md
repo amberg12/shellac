@@ -1,7 +1,9 @@
 <div align="center">
+
 # Shellac
     
 A chess engine written in C++. It is compatible with any GUI with UCI support.
+
 </div>
 
 # Strength
