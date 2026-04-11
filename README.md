@@ -1,7 +1,9 @@
-<div align="centre">
-    # Shellac
+<div align="center">
+
+# Shellac
     
-    A chess engine written in C++. It is compatible with any GUI with UCI support.
+A chess engine written in C++. It is compatible with any GUI with UCI support.
+
 </div>
 
 # Strength
@@ -31,3 +33,7 @@ cd build
 cmake ..
 make
 ```
+
+# Known Issues
+
+Currently PV will report after repetitions.

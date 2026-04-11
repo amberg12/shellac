@@ -14,10 +14,14 @@
  - Reverse futility pruning.
    - Increased aggressiveness when improving
  - Null move pruning.
+ - Razoring
+ - Check Extensions
  - History heuristics
    - Butterfly tables for quiet moves including maluses
  - Late move reduction
    - Less reduction when captures.
+   - More reduction in non-pv nodes.
+   - More reduction when in expected cut-nodes.
  - Move loop pruning (Main search)
    - Futility pruning.
    - Late Move Pruning.
