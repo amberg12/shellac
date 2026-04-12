@@ -27,6 +27,16 @@ namespace shellac {
 
 constexpr Score HISTORY_MAX = 1500;
 
+constexpr Score history_bonus(int depth)
+{
+    return depth * depth;
+}
+
+constexpr Score history_malus(int depth)
+{
+    return -depth;
+}
+
 inline void update_with_gravity(Score* score, Score base, Score bonus)
 {
     bonus = std::clamp(bonus, Score(-HISTORY_MAX), HISTORY_MAX);
