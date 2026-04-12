@@ -29,6 +29,7 @@
 
 #include "evaluate.h"
 #include "movepicker.h"
+#include "util.h"
 
 namespace shellac {
 namespace {
@@ -224,7 +225,7 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     bestMove_ =
         MovePicker::create(hist_.pos(), Move{}, searchStackRoot, butterflyHistory_).next_move();
 
-    auto start = std::chrono::high_resolution_clock::now();
+    auto  start = std::chrono::high_resolution_clock::now();
     Score score{};
     for (int depth = 1; depth <= timeManager_->max_depth(); ++depth) {
         rootDepth_  = depth;
@@ -261,15 +262,16 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
             while (bound != Bounds::EXACT);
         }
 
-        auto end = std::chrono::high_resolution_clock::now();
+        auto end      = std::chrono::high_resolution_clock::now();
         auto duration = end - start;
-        auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+        auto us       = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
 
-        reportData_.nps = static_cast<std::uint64_t>(timeManager_->nodes_searched()) * 1'000'000ULL / std::max(std::uint64_t(us), std::uint64_t(1));
-        reportData_.score = score;
-        reportData_.nodes = timeManager_->nodes_searched();
-        reportData_.pv = searchStackRoot->pv;
-        reportData_.depth = depth;
+        reportData_.nps = static_cast<std::uint64_t>(timeManager_->nodes_searched()) *
+            1'000'000ULL / std::max(std::uint64_t(us), std::uint64_t(1));
+        reportData_.score  = score;
+        reportData_.nodes  = timeManager_->nodes_searched();
+        reportData_.pv     = searchStackRoot->pv;
+        reportData_.depth  = depth;
         reportData_.timeMs = us / 1000;
         reportData_.report();
 
@@ -430,9 +432,8 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
     Score bestScore     = NEG_INF;
     Move  bestMove      = Move{};
 
-    Move searchedQuiets[MAX_LEGAL_MOVES]{};
-    int  searchedQuietCount = 0;
-    bool skipQuiets         = false;
+    StackVector<Move, MAX_LEGAL_MOVES> searchedQuiets{};
+    bool                               skipQuiets = false;
 
     // Loop through all legal moves to search them.
     Move move;
@@ -450,7 +451,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         searchedMoves++;
 
         if (isQuiet) {
-            searchedQuiets[searchedQuietCount++] = move;
+            searchedQuiets.push_back(move);
         }
 
         // Quiet move pruning.
@@ -568,15 +569,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
             // killers so it is favoured.
             if (isQuiet) {
                 ss->killer = move;
-                update_butterfly_history(butterflyHistory_, hist_.pos(), move, depth * depth);
-
-                // Likewise, we should apply a "malus" to moves that did not manage to fail high.
-                for (int i = 0; i < searchedQuietCount - 1; ++i) {
-                    // The "correct" formula is -depth * depth, but people on Discord have
-                    // suggested this as working better in weaker engines.
-                    update_butterfly_history(butterflyHistory_, hist_.pos(), searchedQuiets[i],
-                                             -depth);
-                }
+                update_quiet_histories(depth, move, searchedQuiets);
             }
 
             break;
@@ -757,5 +750,18 @@ void Searcher::pop_move(SearchStack* ss)
 {
     hist_.pop_move();
     (void)ss;
+}
+
+void Searcher::update_quiet_histories(int depth, Move currMove,
+                                      const StackVector<Move, MAX_LEGAL_MOVES>& searchedQuiets)
+{
+    Score bonus = history_bonus(depth);
+    Score malus = history_malus(depth);
+
+    update_butterfly_history(butterflyHistory_, hist_.pos(), currMove, bonus);
+
+    for (Move move : searchedQuiets) {
+        update_butterfly_history(butterflyHistory_, hist_.pos(), move, malus);
+    }
 }
 } // namespace shellac

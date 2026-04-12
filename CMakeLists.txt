@@ -49,6 +49,7 @@ add_executable(shellac
         src/movepicker.h
         src/history.cpp
         src/history.h
+        src/util.h
 )
 
 set_target_properties(shellac PROPERTIES OUTPUT_NAME ${OUTPUT_NAME})

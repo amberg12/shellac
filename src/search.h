@@ -26,9 +26,11 @@
 #include <chrono>
 
 #include "history.h"
+#include "movegen.h"
 #include "position.h"
 #include "tt.h"
 #include "types.h"
+#include "util.h"
 
 namespace shellac {
 class TranspositionTable;
@@ -137,6 +139,9 @@ private:
 
     void add_move(Move move, SearchStack* ss);
     void pop_move(SearchStack* ss);
+
+    void update_quiet_histories(int depth, Move currMove,
+                                const StackVector<Move, MAX_LEGAL_MOVES>& searchedQuiets);
 
     TimeManager* timeManager_ = nullptr;
     GameHistory  hist_{std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};
