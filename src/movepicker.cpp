@@ -23,10 +23,10 @@ Move MovePicker::next_move()
 {
     while (iter_ < size_) {
         Move* bestMove = moves_ + iter_;
-        const int* bestScore = &scores_[bestMove - moves_];
+        const i32* bestScore = &scores_[bestMove - moves_];
 
         for (Move* m = moves_ + iter_ + 1; m < moves_ + size_; ++m) {
-            int* s = &scores_[m - moves_];
+            i32* s = &scores_[m - moves_];
             if (*s > *bestScore) {
                 bestMove = m;
                 bestScore = s;

@@ -223,7 +223,8 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
 
     // Sometimes we try to make a null move, so we load a move in.
     bestMove_ =
-        MovePicker::create(hist_.pos(), Move{}, searchStackRoot, butterflyHistory_).next_move();
+        MovePicker::create(hist_.pos(), Move{}, searchStackRoot, butterflyHistory_, captureHistory_)
+            .next_move();
 
     auto  start = std::chrono::high_resolution_clock::now();
     Score score{};
@@ -291,6 +292,7 @@ void Searcher::new_game()
 {
     tt_.clear();
     butterflyHistory_ = ButterflyHistory{};
+    captureHistory_   = CaptureHistory{};
 }
 
 void Searcher::stop_searching()
@@ -427,11 +429,12 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         }
     }
 
-    auto  mp            = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_);
+    auto  mp = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_, captureHistory_);
     int   searchedMoves = 0;
     Score bestScore     = NEG_INF;
     Move  bestMove      = Move{};
 
+    StackVector<Move, MAX_LEGAL_MOVES> searchedNoisies{};
     StackVector<Move, MAX_LEGAL_MOVES> searchedQuiets{};
     bool                               skipQuiets = false;
 
@@ -452,6 +455,9 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
         if (isQuiet) {
             searchedQuiets.push_back(move);
+        }
+        else {
+            searchedNoisies.push_back(move);
         }
 
         // Quiet move pruning.
@@ -571,6 +577,18 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
                 ss->killer = move;
                 update_quiet_histories(depth, move, searchedQuiets);
             }
+            // If a loud move fails high we should give it a bonus.
+            else {
+                update_capture_history(captureHistory_, hist_.pos(), move, history_bonus(depth));
+            }
+
+            // If there is ever a fail high we should apply a malus to all noisies that didn't fail
+            // high.
+            for (Move m : searchedNoisies) {
+                if (m == move) continue;
+
+                update_capture_history(captureHistory_, hist_.pos(), m, history_malus(depth));
+            }
 
             break;
         }
@@ -662,10 +680,11 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
     // If we are in check, we should also generate evasions (so all legal moves in the position).
     MovePicker mp; // default-construct first
     if (hist_.pos().is_check()) {
-        mp = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_);
+        mp = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_, captureHistory_);
     }
     else {
-        mp = MovePicker::create<MoveType::CAPTURES>(hist_.pos(), ttMove, ss, butterflyHistory_);
+        mp = MovePicker::create<MoveType::CAPTURES>(hist_.pos(), ttMove, ss, butterflyHistory_,
+                                                    captureHistory_);
     }
 
     Move move;

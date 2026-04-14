@@ -151,6 +151,7 @@ private:
 
     TranspositionTable tt_{16};
     ButterflyHistory   butterflyHistory_;
+    CaptureHistory     captureHistory_;
 
     SearchReportData reportData_{};
 
