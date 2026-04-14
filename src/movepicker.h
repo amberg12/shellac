@@ -24,6 +24,15 @@
 #include "search.h"
 
 namespace shellac {
+constexpr i32 score_mvv(PieceType pt)
+{
+    constexpr std::array<i32, 7> kScores = {
+        0, kHistoryMax, kHistoryMax * 3, kHistoryMax * 5, kHistoryMax * 7, kHistoryMax * 9, 0,
+    };
+
+    return kScores[underlying(pt)];
+}
+
 class MovePicker
 {
 public:
@@ -34,13 +43,14 @@ public:
 
     template <MoveType MOVE_TYPE = MoveType::NORMAL>
     static MovePicker create(const Position& pos, Move ttMove, SearchStack* ss,
-                             const ButterflyHistory& butterflyHistory);
+                             const ButterflyHistory& butterflyHistory,
+                             const CaptureHistory&   captureHistory);
 
     Move next_move();
 
 private:
     Move            moves_[MAX_LEGAL_MOVES]{};
-    int             scores_[MAX_LEGAL_MOVES]{};
+    i32             scores_[MAX_LEGAL_MOVES]{};
     size_t          currentMove_{0};
     const Position* pos_{};
     size_t          size_{};
@@ -57,14 +67,15 @@ MovePicker::MovePicker(const Position& pos)
 
 template <MoveType MOVE_TYPE>
 MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
-                              const ButterflyHistory& butterflyHistory)
+                              const ButterflyHistory& butterflyHistory,
+                              const CaptureHistory&   captureHistory)
 {
-    enum Bases : int
+    enum Bases : i32
     {
-        TT_MOVE   = 900'000'000,
-        CAPTURE   = 800'000'000,
-        PROMOTION = 700'000'000,
-        KILLER    = 600'000'000,
+        kTtMove    = 900'000'000,
+        kCapture   = 800'000'000,
+        kPromotion = 700'000'000,
+        kKiller    = 600'000'000,
     };
 
     MovePicker mp;
@@ -77,18 +88,16 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
         Move move = mp.moves_[i];
 
         if (move == ttMove) {
-            mp.scores_[i] = TT_MOVE;
+            mp.scores_[i] = kTtMove;
             continue;
         }
 
         if (pos.is_capture(move)) {
             const PieceType victim =
                 move.is_en_passant() ? PieceType::PAWN : type_of(pos.piece_at(move.dst()));
-            const PieceType attacker = type_of(pos.piece_at(move.src()));
 
-            // Victim should be weighted higher than attackers.
-            mp.scores_[i] = 20 * static_cast<int>(evaluate_piece(victim)) -
-                static_cast<int>(evaluate_piece(attacker)) + CAPTURE;
+            mp.scores_[i] =
+                score_mvv(victim) + read_capture_history(captureHistory, pos, move) + kCapture;
             continue;
         }
 
@@ -96,7 +105,7 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
             const PieceType promoteTo = move.promotion_piece();
 
             if (promoteTo == PieceType::QUEEN) {
-                mp.scores_[i] = QUEEN_SCORE - PAWN_SCORE + PROMOTION;
+                mp.scores_[i] = QUEEN_SCORE - PAWN_SCORE + kPromotion;
             }
             else {
                 // We assume underpromotion is probably not the right choice.
@@ -107,7 +116,7 @@ MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
         }
 
         if (move == ss->killer) {
-            mp.scores_[i] = KILLER;
+            mp.scores_[i] = kKiller;
             continue;
         }
 

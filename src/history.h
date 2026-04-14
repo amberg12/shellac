@@ -25,7 +25,7 @@
 
 namespace shellac {
 
-constexpr Score HISTORY_MAX = 1500;
+constexpr Score kHistoryMax = 1500;
 
 constexpr Score history_bonus(int depth)
 {
@@ -39,8 +39,8 @@ constexpr Score history_malus(int depth)
 
 inline void update_with_gravity(Score* score, Score base, Score bonus)
 {
-    bonus = std::clamp(bonus, Score(-HISTORY_MAX), HISTORY_MAX);
-    *score += bonus - base * std::abs(bonus) / HISTORY_MAX;
+    bonus = std::clamp(bonus, Score(-kHistoryMax), kHistoryMax);
+    *score += bonus - base * std::abs(bonus) / kHistoryMax;
 }
 
 template <typename T>
@@ -84,6 +84,70 @@ inline Score read_butterfly_history(const ButterflyHistory& butterflyTable, cons
                                     Move move)
 {
     return *butterflyTable.read(pos, move);
+}
+
+template <typename T>
+class CaptureTable
+{
+public:
+    T* read(const Position& pos, Move move)
+    {
+        size_t pieceIdx    = underlying(pos.piece_at(move.src()));
+        size_t toIdx       = underlying(move.dst());
+        size_t capturedIdx = [&]
+        {
+            if (move.is_en_passant()) {
+                return pos.side_to_move() == Color::WHITE ? underlying(Piece::B_PAWN)
+                                                          : underlying(Piece::W_PAWN);
+            }
+
+            return underlying(pos.piece_at(move.dst()));
+        }();
+
+        return &captureTable_[pieceIdx][toIdx][capturedIdx];
+    }
+
+    const T* read(const Position& pos, Move move) const
+    {
+        size_t pieceIdx    = underlying(pos.piece_at(move.src()));
+        size_t toIdx       = underlying(move.dst());
+        size_t capturedIdx = [&]
+        {
+            if (move.is_en_passant()) {
+                return pos.side_to_move() == Color::WHITE ? underlying(Piece::B_PAWN)
+                                                          : underlying(Piece::W_PAWN);
+            }
+
+            return underlying(pos.piece_at(move.dst()));
+        }();
+
+        return &captureTable_[pieceIdx][toIdx][capturedIdx];
+    }
+
+private:
+    T captureTable_[16][64][16]{};
+};
+
+using CaptureHistory = CaptureTable<Score>;
+
+inline void update_capture_history(CaptureHistory& captHist, const Position& pos, Move move,
+                                   Score bonus)
+{
+    if (move.is_promotion()) {
+        return;
+    }
+
+    Score* entry = captHist.read(pos, move);
+    update_with_gravity(entry, *entry, bonus);
+}
+
+inline Score read_capture_history(const CaptureHistory& captHist, const Position& pos, Move move)
+{
+    if (move.is_promotion()) {
+        return 0;
+    }
+
+    return *captHist.read(pos, move);
 }
 
 } // namespace shellac
