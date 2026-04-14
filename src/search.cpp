@@ -761,6 +761,8 @@ void Searcher::update_quiet_histories(int depth, Move currMove,
     update_butterfly_history(butterflyHistory_, hist_.pos(), currMove, bonus);
 
     for (Move move : searchedQuiets) {
+        if (move == currMove) continue;
+
         update_butterfly_history(butterflyHistory_, hist_.pos(), move, malus);
     }
 }
