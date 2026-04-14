@@ -25,22 +25,22 @@
 
 namespace shellac {
 
-constexpr Score HISTORY_MAX = 1500;
+constexpr Score kHistoryMax = 16384;
 
 constexpr Score history_bonus(int depth)
 {
-    return depth * depth;
+    return std::clamp(320 * depth - 400, 0, 2400);
 }
 
 constexpr Score history_malus(int depth)
 {
-    return -depth;
+    return -std::clamp(320 * depth - 400, 0, 1200);
 }
 
 inline void update_with_gravity(Score* score, Score base, Score bonus)
 {
-    bonus = std::clamp(bonus, Score(-HISTORY_MAX), HISTORY_MAX);
-    *score += bonus - base * std::abs(bonus) / HISTORY_MAX;
+    bonus = std::clamp(bonus, Score(-kHistoryMax), kHistoryMax);
+    *score += bonus - base * std::abs(bonus) / kHistoryMax;
 }
 
 template <typename T>
