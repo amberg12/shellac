@@ -112,10 +112,10 @@ TimeManager::TimeManager(const SearchLimits& searchLimits, const Color sideToMov
     }
 
     if (searchLimits.infinite) {
-        endTime_ = startTime_ + std::chrono::hours(24);
+        hardLimit_ = std::chrono::hours(24);
     }
     else if (searchLimits.moveTime.has_value()) {
-        endTime_ = startTime_ + std::chrono::milliseconds(searchLimits.moveTime.value());
+        hardLimit_ = std::chrono::milliseconds(searchLimits.moveTime.value());
     }
     else if (searchLimits.whiteTime.has_value() || searchLimits.blackTime.has_value()) {
         int remainingTime = 0;
@@ -142,17 +142,19 @@ TimeManager::TimeManager(const SearchLimits& searchLimits, const Color sideToMov
 
         if (searchLimits.movesToGo.has_value()) {
             allocatedTime = remainingTime / (searchLimits.movesToGo.value() + 1);
+            softLimit_ = hardLimit_ = std::chrono::milliseconds(allocatedTime);
         }
         else {
-            allocatedTime = remainingTime / 30;
+            softLimit_ = std::chrono::milliseconds(allocatedTime / 30);
+            hardLimit_ = std::chrono::milliseconds(allocatedTime / 3);
         }
 
-        allocatedTime += increment;
+        softLimit_ += std::chrono::milliseconds(increment);
+        hardLimit_ += std::chrono::milliseconds(increment);
 
-        endTime_ = startTime_ + std::chrono::milliseconds(allocatedTime);
     }
     else {
-        endTime_ = startTime_ + std::chrono::seconds(999999999);
+        hardLimit_ = std::chrono::seconds(999999999);
     }
 }
 
@@ -171,7 +173,11 @@ TimeManager::Limit TimeManager::check_node()
         return CONTINUE;
     }
 
-    if (std::chrono::steady_clock::now() >= endTime_ - 50ms) {
+    if (std::chrono::steady_clock::now() >= startTime_ + hardLimit_ - 50ms) {
+        return HARD_STOP;
+    }
+
+    if (std::chrono::steady_clock::now() >= startTime_ + softLimit_ ) {
         return SOFT_STOP;
     }
 
@@ -230,6 +236,10 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     for (int depth = 1; depth <= timeManager_->max_depth(); ++depth) {
         rootDepth_  = depth;
         reportData_ = SearchReportData{};
+
+        if (timeManager_->check_node() == TimeManager::SOFT_STOP) {
+            break;
+        }
 
         if (depth <= 5 || is_mate_score(score)) {
             score = search<NodeType::ROOT>(depth, searchStackRoot, NEG_INF, POS_INF, false);
@@ -316,7 +326,7 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
 
     TimeManager::Limit limits = timeManager_->check_node();
 
-    if (limits != TimeManager::CONTINUE) {
+    if (limits == TimeManager::HARD_STOP) {
         stop_searching();
         return 0;
     }
