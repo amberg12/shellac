@@ -114,7 +114,8 @@ public:
 
 private:
     std::chrono::steady_clock::time_point startTime_{};
-    std::chrono::steady_clock::time_point endTime_{};
+    std::chrono::milliseconds             hardLimit_{};
+    std::chrono::milliseconds             softLimit_{};
 
     int          nodesSearched_ = 0;
     int          maxDepth_      = -1;
