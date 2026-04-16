@@ -41,7 +41,7 @@ Move* generate_pawn_moves(Move* begin, const Position& position)
             generate_pawn_destinations(position.side_to_move(), src, blockers);
         const Bitboard validDestinations = [&]
         {
-            if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
+            if constexpr (MOVE_TYPE == MoveType::kCaptures) {
                 return destinations & position.pieces(~position.side_to_move());
             }
 
@@ -74,7 +74,7 @@ Move* generate_moves_for(Move* begin, const Position& position)
         const Bitboard attacks      = generate_attacks<PIECE_TYPE>(src, position.pieces());
         const Bitboard destinations = [&]
         {
-            if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
+            if constexpr (MOVE_TYPE == MoveType::kCaptures) {
                 return attacks & position.pieces(~position.side_to_move());
             }
 
@@ -96,7 +96,7 @@ Move* generate_king_moves(Move* begin, const Position& position)
     const Bitboard attacks      = generate_attacks<PieceType::KING>(src, position.pieces());
     const Bitboard destinations = [&]
     {
-        if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
+        if constexpr (MOVE_TYPE == MoveType::kCaptures) {
             return attacks & position.pieces(~position.side_to_move());
         }
         return attacks & ~position.pieces(position.side_to_move());
@@ -106,7 +106,7 @@ Move* generate_king_moves(Move* begin, const Position& position)
         *begin++ = Move(src, dst);
     }
 
-    if constexpr (MOVE_TYPE == MoveType::CAPTURES) {
+    if constexpr (MOVE_TYPE == MoveType::kCaptures) {
         return begin;
     }
 
@@ -159,7 +159,7 @@ Move* generate_moves(Move* begin, const Position& position)
     return begin;
 }
 
-template Move* generate_moves<MoveType::NORMAL>(Move* begin, const Position& position);
-template Move* generate_moves<MoveType::CAPTURES>(Move* begin, const Position& position);
+template Move* generate_moves<MoveType::kNormal>(Move* begin, const Position& position);
+template Move* generate_moves<MoveType::kCaptures>(Move* begin, const Position& position);
 
 } // namespace shellac

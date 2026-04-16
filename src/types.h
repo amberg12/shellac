@@ -595,6 +595,8 @@ private:
     std::uint16_t repr_{0};
 };
 
+constexpr Move kNullMove = Move{};
+
 inline std::string to_string(const Move move)
 {
     if (move.is_null()) {

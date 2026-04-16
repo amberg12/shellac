@@ -28,14 +28,14 @@
 #include "types.h"
 
 namespace shellac {
-static constexpr size_t MAX_LEGAL_MOVES = 267;
+static constexpr usize kMaxLegalMoves = 320;
 
 class Position;
 
 enum class MoveType
 {
-    NORMAL,
-    CAPTURES,
+    kNormal,
+    kCaptures,
 };
 
 template <MoveType MOVE_TYPE>

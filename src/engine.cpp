@@ -35,11 +35,15 @@ uint64_t run_perft(const Position& position, const int depth)
         return 1;
     }
 
-    uint64_t       sum   = 0;
-    auto mp = MovePicker(position);
+    uint64_t sum = 0;
 
-    Move move;
-    while (!(move = mp.next_move()).is_null()) {
+    std::array<Move, kMaxLegalMoves> moveList{};
+    Move* end            = generate_moves<MoveType::kNormal>(moveList.data(), position);
+    usize movesGenerated = end - moveList.data();
+
+    for (usize i = 0; i < movesGenerated; ++i) {
+        Move move = moveList[i];
+
         if (!position.is_legal(move)) {
             continue;
         }

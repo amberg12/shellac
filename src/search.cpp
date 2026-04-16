@@ -151,7 +151,6 @@ TimeManager::TimeManager(const SearchLimits& searchLimits, const Color sideToMov
 
         softLimit_ += std::chrono::milliseconds(increment);
         hardLimit_ += std::chrono::milliseconds(increment);
-
     }
     else {
         hardLimit_ = std::chrono::seconds(999999999);
@@ -177,7 +176,7 @@ TimeManager::Limit TimeManager::check_node()
         return HARD_STOP;
     }
 
-    if (std::chrono::steady_clock::now() >= startTime_ + softLimit_ ) {
+    if (std::chrono::steady_clock::now() >= startTime_ + softLimit_) {
         return SOFT_STOP;
     }
 
@@ -228,8 +227,9 @@ void Searcher::begin_search(const GameHistory& history, const SearchLimits& limi
     }
 
     // Sometimes we try to make a null move, so we load a move in.
-    bestMove_ =
-        MovePicker::create(hist_.pos(), Move{}, searchStackRoot, butterflyHistory_).next_move();
+    MovePicker emergencyMoveList{MovePickerType::kNormal, hist_.pos(), kNullMove, searchStackRoot,
+                                 butterflyHistory_};
+    bestMove_ = emergencyMoveList.next_move();
 
     auto  start = std::chrono::high_resolution_clock::now();
     Score score{};
@@ -437,13 +437,14 @@ Score Searcher::search(int depth, SearchStack* ss, Score alpha, const Score beta
         }
     }
 
-    auto  mp            = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_);
+    MovePicker mp{MovePickerType::kNormal, hist_.pos(), ttMove, ss, butterflyHistory_};
+
     int   searchedMoves = 0;
     Score bestScore     = NEG_INF;
     Move  bestMove      = Move{};
 
-    StackVector<Move, MAX_LEGAL_MOVES> searchedQuiets{};
-    bool                               skipQuiets = false;
+    StackVector<Move, kMaxLegalMoves> searchedQuiets{};
+    bool                              skipQuiets = false;
 
     // Loop through all legal moves to search them.
     Move move;
@@ -670,13 +671,8 @@ Score Searcher::quiesce(SearchStack* ss, Score alpha, Score beta)
     int searchedMoves = 0;
 
     // If we are in check, we should also generate evasions (so all legal moves in the position).
-    MovePicker mp; // default-construct first
-    if (hist_.pos().is_check()) {
-        mp = MovePicker::create(hist_.pos(), ttMove, ss, butterflyHistory_);
-    }
-    else {
-        mp = MovePicker::create<MoveType::CAPTURES>(hist_.pos(), ttMove, ss, butterflyHistory_);
-    }
+    MovePicker mp{hist_.pos().is_check() ? MovePickerType::kNormal : MovePickerType::kQuiesce,
+                  hist_.pos(), ttMove, ss, butterflyHistory_};
 
     Move move;
     while (!(move = mp.next_move()).is_null()) {
@@ -763,7 +759,7 @@ void Searcher::pop_move(SearchStack* ss)
 }
 
 void Searcher::update_quiet_histories(int depth, Move currMove,
-                                      const StackVector<Move, MAX_LEGAL_MOVES>& searchedQuiets)
+                                      const StackVector<Move, kMaxLegalMoves>& searchedQuiets)
 {
     Score bonus = history_bonus(depth);
     Score malus = history_malus(depth);
@@ -771,7 +767,8 @@ void Searcher::update_quiet_histories(int depth, Move currMove,
     update_butterfly_history(butterflyHistory_, hist_.pos(), currMove, bonus);
 
     for (Move move : searchedQuiets) {
-        if (move == currMove) continue;
+        if (move == currMove)
+            continue;
 
         update_butterfly_history(butterflyHistory_, hist_.pos(), move, malus);
     }
