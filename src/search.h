@@ -142,7 +142,7 @@ private:
     void pop_move(SearchStack* ss);
 
     void update_quiet_histories(int depth, Move currMove,
-                                const StackVector<Move, MAX_LEGAL_MOVES>& searchedQuiets);
+                                const StackVector<Move, kMaxLegalMoves>& searchedQuiets);
 
     TimeManager* timeManager_ = nullptr;
     GameHistory  hist_{std::string("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"), {}};

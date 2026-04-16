@@ -24,99 +24,46 @@
 #include "search.h"
 
 namespace shellac {
+enum class MovePickerType
+{
+    kNormal,
+    kQuiesce,
+};
+
+enum class MovePickerStage
+{
+    kTtMove,
+    kGenerateMoves,
+    kPickMoves,
+
+    kQsTtMove,
+    kQsGenerateMoves,
+    kQsPickMoves,
+};
+
 class MovePicker
 {
 public:
-    MovePicker() noexcept = default;
-
-    template <MoveType MOVE_TYPE = MoveType::NORMAL>
-    MovePicker(const Position& pos);
-
-    template <MoveType MOVE_TYPE = MoveType::NORMAL>
-    static MovePicker create(const Position& pos, Move ttMove, SearchStack* ss,
-                             const ButterflyHistory& butterflyHistory);
+    MovePicker(MovePickerType movePickerType, const Position& pos, Move ttMove, SearchStack* ss,
+               const ButterflyHistory& butterflyHistory);
 
     Move next_move();
 
 private:
-    Move            moves_[MAX_LEGAL_MOVES]{};
-    int             scores_[MAX_LEGAL_MOVES]{};
-    size_t          currentMove_{0};
-    const Position* pos_{};
-    size_t          size_{};
-    size_t          iter_{0};
+    void score_moves();
+    Move pick_next_move();
+
+    MovePickerStage         movePickerStage_;
+    const Position&         pos_;
+    Move                    ttMove_;
+    SearchStack*            ss_;
+    const ButterflyHistory& butterflyHistory_;
+
+    std::array<Move, kMaxLegalMoves> generatedMoves_;
+    std::array<i32, kMaxLegalMoves>  generatedScores_;
+    usize                            generatedMoveCount_{};
+    usize                            currentMove_{};
 };
-
-template <MoveType MOVE_TYPE>
-MovePicker::MovePicker(const Position& pos)
-{
-    pos_       = &pos;
-    Move* end_ = generate_moves<MOVE_TYPE>(moves_, pos);
-    size_      = end_ - moves_;
-}
-
-template <MoveType MOVE_TYPE>
-MovePicker MovePicker::create(const Position& pos, Move ttMove, SearchStack* ss,
-                              const ButterflyHistory& butterflyHistory)
-{
-    enum Bases : int
-    {
-        TT_MOVE   = 900'000'000,
-        CAPTURE   = 800'000'000,
-        PROMOTION = 700'000'000,
-        KILLER    = 600'000'000,
-    };
-
-    MovePicker mp;
-    mp.pos_ = &pos;
-
-    Move* end = generate_moves<MOVE_TYPE>(mp.moves_, pos);
-    mp.size_  = end - mp.moves_;
-
-    for (size_t i = 0; i < mp.size_; ++i) {
-        Move move = mp.moves_[i];
-
-        if (move == ttMove) {
-            mp.scores_[i] = TT_MOVE;
-            continue;
-        }
-
-        if (pos.is_capture(move)) {
-            const PieceType victim =
-                move.is_en_passant() ? PieceType::PAWN : type_of(pos.piece_at(move.dst()));
-            const PieceType attacker = type_of(pos.piece_at(move.src()));
-
-            // Victim should be weighted higher than attackers.
-            mp.scores_[i] = 20 * static_cast<int>(evaluate_piece(victim)) -
-                static_cast<int>(evaluate_piece(attacker)) + CAPTURE;
-            continue;
-        }
-
-        if (move.is_promotion()) {
-            const PieceType promoteTo = move.promotion_piece();
-
-            if (promoteTo == PieceType::QUEEN) {
-                mp.scores_[i] = QUEEN_SCORE - PAWN_SCORE + PROMOTION;
-            }
-            else {
-                // We assume underpromotion is probably not the right choice.
-                // If underpromotion is good then it is probably best to promote to a knight.
-                mp.scores_[i] = -evaluate_piece(promoteTo);
-            }
-            continue;
-        }
-
-        if (move == ss->killer) {
-            mp.scores_[i] = KILLER;
-            continue;
-        }
-
-        mp.scores_[i] = read_butterfly_history(butterflyHistory, pos, move);
-    }
-
-    return mp;
-}
-
 } // namespace shellac
 
 #endif // SHELLAC_MOVEPICKER_H
